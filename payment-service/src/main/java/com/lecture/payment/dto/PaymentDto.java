@@ -1,100 +1,126 @@
 package com.lecture.payment.dto;
 
 import com.lecture.payment.entity.Payment;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import lombok.*;
-
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 public class PaymentDto {
 
-    // 결제 요청 (외부 클라이언트용)
+    // API-07 요청 (Enrollment Service → Payment Service 내부 호출)
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
-    public static class PaymentRequest {
-        @NotNull(message = "강의 ID는 필수입니다")
-        private Long courseId;
+    public static class InternalProvisionRequest {
+        @NotNull(message = "enrollmentId는 필수입니다")
+        private Long enrollmentId;
 
-        @NotNull(message = "금액은 필수입니다")
-        @Positive(message = "금액은 양수여야 합니다")
-        private BigDecimal amount;
-    }
-
-    // 내부 서비스 결제 요청 (Enrollment Service → Payment Service)
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class InternalPaymentRequest {
+        @NotNull(message = "userId는 필수입니다")
         private Long userId;
+
+        @NotNull(message = "courseId는 필수입니다")
         private Long courseId;
+
+        @NotNull(message = "amount는 필수입니다")
+        @Positive(message = "amount는 양수여야 합니다")
         private BigDecimal amount;
     }
 
-    // 결제 응답
+    // API-07 응답
+    @Getter
+    @Builder
+    public static class InternalProvisionResponse {
+        private Long paymentId;
+        private Long enrollmentId;
+        private Payment.Status status;
+
+        public static InternalProvisionResponse from(Payment payment) {
+            return InternalProvisionResponse.builder()
+                    .paymentId(payment.getId())
+                    .enrollmentId(payment.getEnrollmentId())
+                    .status(payment.getStatus())
+                    .build();
+        }
+    }
+
+    // API-13 요청
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
+    public static class AcceptRequest {
+        private String managerMemo;
+    }
+
+    // API-15 요청
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CompleteRequest {
+        @NotBlank(message = "ticketNumber는 필수입니다")
+        @Size(min = 3, max = 100, message = "ticketNumber는 3~100자여야 합니다")
+        private String ticketNumber;
+
+        @NotBlank(message = "resultMemo는 필수입니다")
+        @Size(min = 5, max = 1000, message = "resultMemo는 5~1000자여야 합니다")
+        private String resultMemo;
+    }
+
+    // API-16(반려), API-17(취소) 공용 요청
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ReasonRequest {
+        @NotBlank(message = "reason은 필수입니다")
+        @Size(min = 5, max = 500, message = "reason은 5~500자여야 합니다")
+        private String reason;
+    }
+
+    // API-09, 12~17 공용 응답 ("변경된 Payment 객체")
+    @Getter
     @Builder
     public static class PaymentResponse {
-        private Long paymentId;
+        private Long id;
+        private Long enrollmentId;
         private Long userId;
         private Long courseId;
-        private BigDecimal amount;
+        private Long managerId;
         private Payment.Status status;
         private String transactionId;
+        private String managerMemo;
+        private String resultMemo;
+        private String rejectReason;
+        private String cancelReason;
+        private LocalDateTime providedAt;
         private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
 
         public static PaymentResponse from(Payment payment) {
             return PaymentResponse.builder()
-                    .paymentId(payment.getId())
+                    .id(payment.getId())
+                    .enrollmentId(payment.getEnrollmentId())
                     .userId(payment.getUserId())
                     .courseId(payment.getCourseId())
-                    .amount(payment.getAmount())
+                    .managerId(payment.getManagerId())
                     .status(payment.getStatus())
                     .transactionId(payment.getTransactionId())
+                    .managerMemo(payment.getManagerMemo())
+                    .resultMemo(payment.getResultMemo())
+                    .rejectReason(payment.getRejectReason())
+                    .cancelReason(payment.getCancelReason())
+                    .providedAt(payment.getProvidedAt())
                     .createdAt(payment.getCreatedAt())
-                    .build();
-        }
-    }
-
-    // 내부 서비스 결제 결과 응답
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class InternalPaymentResult {
-        private Long paymentId;
-        private String status;
-    }
-
-    // 공통 API 응답 래퍼
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class ApiResponse<T> {
-        private boolean success;
-        private String message;
-        private T data;
-
-        public static <T> ApiResponse<T> success(T data) {
-            return ApiResponse.<T>builder()
-                    .success(true)
-                    .message("성공")
-                    .data(data)
-                    .build();
-        }
-
-        public static <T> ApiResponse<T> error(String message) {
-            return ApiResponse.<T>builder()
-                    .success(false)
-                    .message(message)
+                    .updatedAt(payment.getUpdatedAt())
                     .build();
         }
     }

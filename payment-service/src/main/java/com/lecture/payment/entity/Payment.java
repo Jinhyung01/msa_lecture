@@ -1,5 +1,6 @@
 package com.lecture.payment.entity;
 
+import com.lecture.payment.exception.ApiException;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -28,17 +29,37 @@ public class Payment {
     @Column(name = "course_id", nullable = false)
     private Long courseId;
 
+    @Column(name = "enrollment_id", nullable = false, unique = true)
+    private Long enrollmentId;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
-    private Status status = Status.PENDING;
+    private Status status = Status.REQUESTED;
 
-    // 외부 PG사 거래 ID (실습에서는 UUID로 대체)
     @Column(name = "transaction_id", unique = true)
     private String transactionId;
+
+    @Column(name = "manager_id")
+    private Long managerId;
+
+    @Column(name = "manager_memo", length = 500)
+    private String managerMemo;
+
+    @Column(name = "result_memo", length = 1000)
+    private String resultMemo;
+
+    @Column(name = "reject_reason", length = 500)
+    private String rejectReason;
+
+    @Column(name = "cancel_reason", length = 500)
+    private String cancelReason;
+
+    @Column(name = "provided_at")
+    private LocalDateTime providedAt;
 
     @CreatedDate
     @Column(updatable = false)
@@ -48,18 +69,55 @@ public class Payment {
     private LocalDateTime updatedAt;
 
     public enum Status {
-        PENDING,    // 결제 대기
-        COMPLETED,  // 결제 완료
-        FAILED,     // 결제 실패
-        CANCELLED   // 취소
+        REQUESTED,
+        ACCEPTED,
+        PROVISIONING,
+        PROVIDED,
+        REJECTED,
+        CANCELLED
     }
 
-    public void complete(String transactionId) {
-        this.status = Status.COMPLETED;
-        this.transactionId = transactionId;
+    public void accept(Long managerId, String managerMemo) {
+        requireStatus(Status.REQUESTED, "REQUESTED 상태에서만 접수할 수 있습니다.");
+        this.status = Status.ACCEPTED;
+        this.managerId = managerId;
+        this.managerMemo = managerMemo;
     }
 
-    public void fail() {
-        this.status = Status.FAILED;
+    public void start(Long managerId) {
+        requireStatus(Status.ACCEPTED, "ACCEPTED 상태에서만 제공을 시작할 수 있습니다.");
+        this.status = Status.PROVISIONING;
+        this.managerId = managerId;
+    }
+
+    public void complete(Long managerId, String ticketNumber, String resultMemo) {
+        requireStatus(Status.PROVISIONING, "PROVISIONING 상태에서만 제공을 완료할 수 있습니다.");
+        this.status = Status.PROVIDED;
+        this.managerId = managerId;
+        this.transactionId = ticketNumber;
+        this.resultMemo = resultMemo;
+        this.providedAt = LocalDateTime.now();
+    }
+
+    public void reject(Long managerId, String reason) {
+        requireStatus(Status.REQUESTED, "REQUESTED 상태에서만 반려할 수 있습니다.");
+        this.status = Status.REJECTED;
+        this.managerId = managerId;
+        this.rejectReason = reason;
+    }
+
+    public void cancel(Long managerId, String reason) {
+        if (status != Status.ACCEPTED && status != Status.PROVISIONING) {
+            throw ApiException.invalidTransition("ACCEPTED 또는 PROVISIONING 상태에서만 취소할 수 있습니다.");
+        }
+        this.status = Status.CANCELLED;
+        this.managerId = managerId;
+        this.cancelReason = reason;
+    }
+
+    private void requireStatus(Status expected, String message) {
+        if (this.status != expected) {
+            throw ApiException.invalidTransition(message);
+        }
     }
 }

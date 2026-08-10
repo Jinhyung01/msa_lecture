@@ -2,16 +2,15 @@ package com.lecture.payment.service;
 
 import com.lecture.payment.dto.PaymentDto;
 import com.lecture.payment.entity.Payment;
+import com.lecture.payment.exception.ApiException;
 import com.lecture.payment.kafka.PaymentKafkaProducer;
 import com.lecture.payment.repository.PaymentRepository;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -19,89 +18,108 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PaymentService {
 
+    private static final String ADMIN_ROLE = "INSTRUCTOR";
+
     private final PaymentRepository paymentRepository;
     private final PaymentKafkaProducer kafkaProducer;
 
     /**
-     * 내부 결제 요청 (Enrollment Service → Payment Service REST 호출)
-     * 실습 환경에서는 PG 연동 없이 항상 성공으로 처리
-     *
-     * 처리 흐름:
-     * 1. Payment 생성 (PENDING)
-     * 2. PG 결제 처리 (실습: UUID 트랜잭션 ID 발급으로 대체)
-     * 3. Payment 상태 → COMPLETED
-     * 4. payment.completed 이벤트 발행 → Kafka
+     * API-07: enrollmentId당 제공 작업 1건만 REQUESTED로 생성한다.
+     * 기존의 자동 결제/즉시 완료 로직은 만들지 않는다.
      */
     @Transactional
-    public PaymentDto.InternalPaymentResult processInternalPayment(
-            PaymentDto.InternalPaymentRequest request) {
+    public PaymentDto.InternalProvisionResponse createProvision(PaymentDto.InternalProvisionRequest request) {
+        if (paymentRepository.existsByEnrollmentId(request.getEnrollmentId())) {
+            throw ApiException.duplicate(
+                    "이미 해당 신청의 제공 작업이 존재합니다: enrollmentId=" + request.getEnrollmentId());
+        }
 
-        log.info("[PaymentService] 결제 요청 - userId: {}, courseId: {}, amount: {}",
-                request.getUserId(), request.getCourseId(), request.getAmount());
-
+        // ponytail: existsByEnrollmentId 이후 save() 사이에 동시 요청이 끼어들면 DB 유니크 제약 위반이
+        // enrollment_id 중복이 아닌 다른 무결성 오류(FK 위반 등)와 구분되지 않고 500으로 나갈 수 있다.
+        // Sprint 1은 Enrollment Service가 enrollmentId당 1회만 호출하므로 실질적 경합이 없어 그대로 둔다.
+        // 경합이 실제로 발생하면 원인(유니크 제약 위반 SQLState)을 구분해 duplicate()로 매핑한다.
         Payment payment = paymentRepository.save(
                 Payment.builder()
+                        .enrollmentId(request.getEnrollmentId())
                         .userId(request.getUserId())
                         .courseId(request.getCourseId())
                         .amount(request.getAmount())
                         .build()
         );
-
-        try {
-            String transactionId = UUID.randomUUID().toString();
-
-            payment.complete(transactionId);
-            log.info("[PaymentService] 결제 완료 처리 - paymentId: {}, transactionId: {}",
-                    payment.getId(), transactionId);
-
-            kafkaProducer.publishPaymentCompleted(
-                    PaymentKafkaProducer.PaymentCompletedEvent.builder()
-                            .paymentId(payment.getId())
-                            .userId(request.getUserId())
-                            .courseId(request.getCourseId())
-                            .status("COMPLETED")
-                            .build()
-            );
-
-            log.info("[PaymentService] 결제 최종 성공 - paymentId: {}", payment.getId());
-
-            return PaymentDto.InternalPaymentResult.builder()
-                    .paymentId(payment.getId())
-                    .status("COMPLETED")
-                    .build();
-
-        } catch (Exception e) {
-            payment.fail();
-
-            log.error("[PaymentService] 결제 실패 - paymentId: {}, userId: {}, courseId: {}, error: {}",
-                    payment.getId(),
-                    request.getUserId(),
-                    request.getCourseId(),
-                    e.getMessage(),
-                    e);
-
-            return PaymentDto.InternalPaymentResult.builder()
-                    .paymentId(payment.getId())
-                    .status("FAILED")
-                    .build();
-        }
+        log.info("[PaymentService] 제공 작업 생성 - paymentId: {}, enrollmentId: {}",
+                payment.getId(), payment.getEnrollmentId());
+        return PaymentDto.InternalProvisionResponse.from(payment);
     }
 
-    /**
-     * 결제 단건 조회
-     */
-    public PaymentDto.PaymentResponse getPayment(Long id) {
-        Payment payment = paymentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("결제 정보를 찾을 수 없습니다: " + id));
+    public PaymentDto.PaymentResponse getProvision(Long id, Long requesterId, String requesterRole) {
+        Payment payment = findOrThrow(id);
+        boolean isOwner = payment.getUserId().equals(requesterId);
+        boolean isAdmin = ADMIN_ROLE.equals(requesterRole);
+        if (!isOwner && !isAdmin) {
+            throw ApiException.forbidden("본인 또는 관리자만 조회할 수 있습니다.");
+        }
         return PaymentDto.PaymentResponse.from(payment);
     }
 
-    /**
-     * 사용자 결제 내역 조회
-     */
-    public List<PaymentDto.PaymentResponse> getPaymentsByUser(Long userId) {
-        return paymentRepository.findByUserId(userId).stream()
-                .map(PaymentDto.PaymentResponse::from)
-                .collect(Collectors.toList());
+    public List<PaymentDto.PaymentResponse> listAdmin(Payment.Status status) {
+        List<Payment> payments = status != null
+                ? paymentRepository.findByStatusOrderByCreatedAtDesc(status)
+                : paymentRepository.findAllByOrderByCreatedAtDesc();
+        return payments.stream().map(PaymentDto.PaymentResponse::from).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public PaymentDto.PaymentResponse accept(Long id, Long managerId, String managerMemo) {
+        Payment payment = findOrThrow(id);
+        Payment.Status previous = payment.getStatus();
+        payment.accept(managerId, managerMemo);
+        paymentRepository.flush();
+        kafkaProducer.publishStatusChanged(payment, previous, null);
+        return PaymentDto.PaymentResponse.from(payment);
+    }
+
+    @Transactional
+    public PaymentDto.PaymentResponse start(Long id, Long managerId) {
+        Payment payment = findOrThrow(id);
+        Payment.Status previous = payment.getStatus();
+        payment.start(managerId);
+        paymentRepository.flush();
+        kafkaProducer.publishStatusChanged(payment, previous, null);
+        return PaymentDto.PaymentResponse.from(payment);
+    }
+
+    @Transactional
+    public PaymentDto.PaymentResponse complete(Long id, Long managerId, String ticketNumber, String resultMemo) {
+        Payment payment = findOrThrow(id);
+        Payment.Status previous = payment.getStatus();
+        payment.complete(managerId, ticketNumber, resultMemo);
+        paymentRepository.flush();
+        kafkaProducer.publishResourceProvided(payment, previous);
+        return PaymentDto.PaymentResponse.from(payment);
+    }
+
+    @Transactional
+    public PaymentDto.PaymentResponse reject(Long id, Long managerId, String reason) {
+        Payment payment = findOrThrow(id);
+        Payment.Status previous = payment.getStatus();
+        payment.reject(managerId, reason);
+        paymentRepository.flush();
+        kafkaProducer.publishStatusChanged(payment, previous, reason);
+        return PaymentDto.PaymentResponse.from(payment);
+    }
+
+    @Transactional
+    public PaymentDto.PaymentResponse cancel(Long id, Long managerId, String reason) {
+        Payment payment = findOrThrow(id);
+        Payment.Status previous = payment.getStatus();
+        payment.cancel(managerId, reason);
+        paymentRepository.flush();
+        kafkaProducer.publishStatusChanged(payment, previous, reason);
+        return PaymentDto.PaymentResponse.from(payment);
+    }
+
+    private Payment findOrThrow(Long id) {
+        return paymentRepository.findById(id)
+                .orElseThrow(() -> ApiException.notFound("제공 작업을 찾을 수 없습니다: " + id));
     }
 }

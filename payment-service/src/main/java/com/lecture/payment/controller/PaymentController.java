@@ -1,51 +1,134 @@
 package com.lecture.payment.controller;
 
 import com.lecture.payment.dto.PaymentDto;
+import com.lecture.payment.entity.Payment;
+import com.lecture.payment.exception.ApiException;
 import com.lecture.payment.service.PaymentService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor
 public class PaymentController {
 
+    private static final String ADMIN_ROLE = "INSTRUCTOR";
+
     private final PaymentService paymentService;
 
     /**
-     * POST /payments/internal/request - 내부 결제 요청 (Enrollment Service 호출)
+     * API-07: 내부 생성. Enrollment Service만 호출하며 Gateway 사용자 헤더가 없다.
      */
     @PostMapping("/internal/request")
-    public ResponseEntity<PaymentDto.InternalPaymentResult> processInternalPayment(
-            @RequestBody PaymentDto.InternalPaymentRequest request) {
-
-        PaymentDto.InternalPaymentResult result = paymentService.processInternalPayment(request);
-        return ResponseEntity.ok(result);
+    public ResponseEntity<PaymentDto.InternalProvisionResponse> createProvision(
+            @Valid @RequestBody PaymentDto.InternalProvisionRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(paymentService.createProvision(request));
     }
 
     /**
-     * GET /payments/{id} - 결제 단건 조회
+     * API-12: 관리자 제공 작업 목록
+     */
+    @GetMapping("/admin")
+    public ResponseEntity<List<PaymentDto.PaymentResponse>> listAdmin(
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-User-Role") String role,
+            @RequestParam(required = false) Payment.Status status) {
+        requireAdmin(role);
+        return ResponseEntity.ok(paymentService.listAdmin(status));
+    }
+
+    /**
+     * 제공 작업 상세. 신청자 본인 또는 관리자만 조회 가능.
      */
     @GetMapping("/{id}")
-    public ResponseEntity<PaymentDto.ApiResponse<PaymentDto.PaymentResponse>> getPayment(
-            @PathVariable Long id) {
-
-        return ResponseEntity.ok(
-                PaymentDto.ApiResponse.success(paymentService.getPayment(id)));
+    public ResponseEntity<PaymentDto.PaymentResponse> getProvision(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-User-Role") String role) {
+        return ResponseEntity.ok(paymentService.getProvision(id, userId, role));
     }
 
     /**
-     * GET /payments/user/{userId} - 사용자 결제 내역 조회
+     * API-13: 관리자 접수
      */
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<PaymentDto.ApiResponse<List<PaymentDto.PaymentResponse>>> getPaymentsByUser(
-            @PathVariable Long userId) {
+    @PatchMapping("/{id}/accept")
+    public ResponseEntity<PaymentDto.PaymentResponse> accept(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long managerId,
+            @RequestHeader("X-User-Role") String role,
+            @RequestBody(required = false) PaymentDto.AcceptRequest request) {
+        requireAdmin(role);
+        String managerMemo = request != null ? request.getManagerMemo() : null;
+        return ResponseEntity.ok(paymentService.accept(id, managerId, managerMemo));
+    }
 
+    /**
+     * API-14: 제공 시작
+     */
+    @PatchMapping("/{id}/start")
+    public ResponseEntity<PaymentDto.PaymentResponse> start(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long managerId,
+            @RequestHeader("X-User-Role") String role) {
+        requireAdmin(role);
+        return ResponseEntity.ok(paymentService.start(id, managerId));
+    }
+
+    /**
+     * API-15: 제공 완료
+     */
+    @PatchMapping("/{id}/complete")
+    public ResponseEntity<PaymentDto.PaymentResponse> complete(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long managerId,
+            @RequestHeader("X-User-Role") String role,
+            @Valid @RequestBody PaymentDto.CompleteRequest request) {
+        requireAdmin(role);
         return ResponseEntity.ok(
-                PaymentDto.ApiResponse.success(paymentService.getPaymentsByUser(userId)));
+                paymentService.complete(id, managerId, request.getTicketNumber(), request.getResultMemo()));
+    }
+
+    /**
+     * API-16: 반려
+     */
+    @PatchMapping("/{id}/reject")
+    public ResponseEntity<PaymentDto.PaymentResponse> reject(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long managerId,
+            @RequestHeader("X-User-Role") String role,
+            @Valid @RequestBody PaymentDto.ReasonRequest request) {
+        requireAdmin(role);
+        return ResponseEntity.ok(paymentService.reject(id, managerId, request.getReason()));
+    }
+
+    /**
+     * API-17: 관리자 제공 취소
+     */
+    @PatchMapping("/{id}/cancel")
+    public ResponseEntity<PaymentDto.PaymentResponse> cancel(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Id") Long managerId,
+            @RequestHeader("X-User-Role") String role,
+            @Valid @RequestBody PaymentDto.ReasonRequest request) {
+        requireAdmin(role);
+        return ResponseEntity.ok(paymentService.cancel(id, managerId, request.getReason()));
+    }
+
+    private void requireAdmin(String role) {
+        if (!ADMIN_ROLE.equals(role)) {
+            throw ApiException.forbidden("이 작업을 수행할 권한이 없습니다.");
+        }
     }
 }
