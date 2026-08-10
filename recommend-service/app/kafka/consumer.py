@@ -7,15 +7,14 @@ from app.config.settings import settings
 logger = logging.getLogger(__name__)
 
 
-class EnrollmentCompletedConsumer:
+class ResourceProvidedConsumer:
     """
-    Kafka Consumer: enrollment.completed 이벤트 수신
-    - Enrollment Service가 수강 활성화 후 발행
-    - 실시간 추천 캐시 갱신 트리거 (실습 수준: 로그 처리)
+    Kafka Consumer: resource.provided 이벤트 수신 (담당: 백엔드 C가 발행, 명세서 9.1)
+    - 연관 리소스 캐시 갱신 트리거 용도 (Sprint 1은 로그 처리로 대체, 선택 사항)
     """
 
     def __init__(self):
-        self.topic = settings.kafka_topic_enrollment_completed
+        self.topic = settings.kafka_topic_resource_provided
         self.consumer = None
         self._running = False
 
@@ -57,25 +56,25 @@ class EnrollmentCompletedConsumer:
 
     def _handle_message(self, event: dict):
         """
-        enrollment.completed 이벤트 처리
-        - enrollmentId, userId, courseId 추출
-        - 추천 캐시 갱신 트리거 (실습: 로그로 대체)
+        resource.provided 이벤트 처리
+        - eventId, enrollmentId, userId, resourceId 추출
+        - 연관 리소스 캐시 갱신 트리거 (Sprint 1: 로그로 대체)
         """
         try:
+            event_id = event.get("eventId")
             enrollment_id = event.get("enrollmentId")
             user_id = event.get("userId")
-            course_id = event.get("courseId")
+            resource_id = event.get("resourceId")
 
             logger.info(
-                f"[KafkaConsumer] enrollment.completed 수신 - "
-                f"enrollmentId: {enrollment_id}, userId: {user_id}, courseId: {course_id}"
+                f"[KafkaConsumer] resource.provided 수신 - eventId: {event_id}, "
+                f"enrollmentId: {enrollment_id}, userId: {user_id}, resourceId: {resource_id}"
             )
 
-            # 실습 포인트: 여기서 캐시 갱신 또는 추천 재계산 로직 추가 가능
-            # 예: recommend_cache.invalidate(user_id)
+            # 실습 포인트: 여기서 사용자별 연관 리소스 캐시 무효화 등을 추가할 수 있다.
 
         except Exception as e:
             logger.error(f"[KafkaConsumer] 메시지 처리 실패: {e}, event: {event}")
 
 
-enrollment_consumer = EnrollmentCompletedConsumer()
+resource_provided_consumer = ResourceProvidedConsumer()

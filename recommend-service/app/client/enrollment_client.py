@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 
 class EnrollmentServiceClient:
     """
-    Enrollment Service REST 클라이언트
-    - 수강 이력 조회 (ACTIVE 강의 ID 목록)
+    Enrollment Service REST 클라이언트 (담당: 백엔드 B, 계약만 이 서비스에서 소비)
+    - 제공 완료/진행 중 이력 조회
     """
 
     def __init__(self):
@@ -17,8 +17,8 @@ class EnrollmentServiceClient:
 
     async def get_enrollment_history(self, user_id: int) -> EnrollmentHistoryResponse:
         """
-        GET /enrollments/internal/history/{userId}
-        사용자의 수강 중인 강의 ID 목록 조회
+        GET /api/enrollments/internal/history/{userId}
+        사용자의 제공 완료(PROVIDED) / 진행 중 리소스 ID 목록 조회
         """
         url = f"{self.base_url}/api/enrollments/internal/history/{user_id}"
         try:
@@ -28,9 +28,9 @@ class EnrollmentServiceClient:
                 data = response.json()
                 return EnrollmentHistoryResponse(**data)
         except httpx.HTTPError as e:
-            logger.error(f"[EnrollmentClient] 수강 이력 조회 실패 - userId: {user_id}, error: {e}")
-            # 실패 시 빈 이력 반환 (추천 서비스는 비핵심 기능)
-            return EnrollmentHistoryResponse(userId=user_id, activeCourseIds=[])
+            logger.error(f"[EnrollmentClient] 제공 이력 조회 실패 - userId: {user_id}, error: {e}")
+            # 실패 시 빈 이력 반환 (연관 리소스는 비핵심 기능)
+            return EnrollmentHistoryResponse(userId=user_id, providedCourseIds=[], inProgressCourseIds=[])
 
 
 enrollment_client = EnrollmentServiceClient()

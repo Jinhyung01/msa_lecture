@@ -2,24 +2,25 @@ package com.lecture.course.repository;
 
 import com.lecture.course.entity.Course;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 
-public interface CourseRepository extends JpaRepository<Course, Long> {
+public interface CourseRepository extends JpaRepository<Course, Long>, JpaSpecificationExecutor<Course> {
 
-    // 카테고리별 강의 조회 (추천 서비스 사용)
-    List<Course> findByCategoryAndStatus(Course.Category category, Course.Status status);
-
-    // 강사별 강의 조회
+    // 강사(등록 관리자)별 리소스 조회 - 수정 시 소유권 확인용
     List<Course> findByInstructorId(Long instructorId);
 
-    // 활성 강의 전체 조회
-    List<Course> findByStatus(Course.Status status);
-
-    // 카테고리별 + 특정 ID 제외 조회 (추천 서비스: 이미 수강한 강의 제외)
-    List<Course> findByCategoryAndStatusAndIdNotIn(
-            Course.Category category,
+    // 연관 리소스 후보 조회: 카테고리 목록 중 하나 + 상태 + 제외 ID 목록
+    List<Course> findByCategoryInAndStatusAndIdNotIn(
+            List<Course.Category> categories,
             Course.Status status,
             List<Long> excludeIds
+    );
+
+    // 제외 ID가 없을 때 (진행/제공 이력이 아예 없는 신규 사용자 케이스 대비)
+    List<Course> findByCategoryInAndStatus(
+            List<Course.Category> categories,
+            Course.Status status
     );
 }

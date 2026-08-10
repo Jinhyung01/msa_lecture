@@ -14,13 +14,14 @@ import java.time.LocalDateTime;
 public class UserDto {
 
     // 회원가입 요청
+    // 화면 라벨은 "사번"으로 표시하지만, Auth Server 소스가 없어 email 필드를 그대로 사용한다.
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
     public static class RegisterRequest {
-        @NotBlank(message = "이메일은 필수입니다")
-        @Email(message = "올바른 이메일 형식이 아닙니다")
+        @NotBlank(message = "사번(이메일)은 필수입니다")
+        @Email(message = "올바른 사번 형식이 아닙니다")
         private String email;
 
         @NotBlank(message = "비밀번호는 필수입니다")
@@ -30,10 +31,10 @@ public class UserDto {
         @NotBlank(message = "이름은 필수입니다")
         private String name;
 
-        private User.Role role; // STUDENT or INSTRUCTOR
+        private User.Role role; // STUDENT(신청자) or INSTRUCTOR(리소스 관리자)
     }
 
-    // 사용자 정보 응답
+    // 사용자 정보 응답 - 래퍼 없이 그대로 반환한다 (명세서 6.3)
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -52,32 +53,6 @@ public class UserDto {
                     .name(user.getName())
                     .role(user.getRole())
                     .createdAt(user.getCreatedAt())
-                    .build();
-        }
-    }
-
-    // 공통 API 응답 래퍼
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class ApiResponse<T> {
-        private boolean success;
-        private String message;
-        private T data;
-
-        public static <T> ApiResponse<T> success(T data) {
-            return ApiResponse.<T>builder()
-                    .success(true)
-                    .message("성공")
-                    .data(data)
-                    .build();
-        }
-
-        public static <T> ApiResponse<T> error(String message) {
-            return ApiResponse.<T>builder()
-                    .success(false)
-                    .message(message)
                     .build();
         }
     }

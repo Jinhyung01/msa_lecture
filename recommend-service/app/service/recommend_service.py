@@ -1,105 +1,101 @@
 import logging
-from collections import Counter
-from typing import List, Optional
+from typing import Dict, List
 
 from app.client.course_client import course_client
 from app.client.enrollment_client import enrollment_client
-from app.model.schemas import CourseCategory, CourseResponse, RecommendResponse
+from app.model.schemas import CourseCategory, RelatedResourceResponse
 
 logger = logging.getLogger(__name__)
+
+# 카테고리 연관 규칙 (규칙 기반, AI 미사용 - 플로우 문서 16장 규칙을
+# 통합 개발 구현 명세서 5.2의 확정 카테고리 Enum(SERVER/CLOUD/LICENSE/DATA/
+# ACCOUNT/NETWORK/SECURITY/PHYSICAL_DEVICE/OTHER)에 맞춰 옮긴 것이다.
+# 플로우 문서의 DATABASE 카테고리가 최종 Enum에는 없어 SECURITY로 대체했다.
+# 실제 값은 팀 합의 후 조정 가능하다.
+CATEGORY_RELATION_MAP: Dict[CourseCategory, List[CourseCategory]] = {
+    CourseCategory.SERVER: [CourseCategory.NETWORK, CourseCategory.SECURITY, CourseCategory.ACCOUNT],
+    CourseCategory.CLOUD: [CourseCategory.ACCOUNT, CourseCategory.NETWORK, CourseCategory.SECURITY],
+    CourseCategory.DATA: [CourseCategory.SECURITY, CourseCategory.ACCOUNT],
+    CourseCategory.PHYSICAL_DEVICE: [CourseCategory.LICENSE, CourseCategory.ACCOUNT],
+    CourseCategory.LICENSE: [CourseCategory.ACCOUNT],
+    CourseCategory.NETWORK: [CourseCategory.SECURITY, CourseCategory.ACCOUNT],
+    CourseCategory.ACCOUNT: [CourseCategory.SECURITY],
+    CourseCategory.SECURITY: [CourseCategory.ACCOUNT],
+    CourseCategory.OTHER: [],
+}
+
+MAX_RESOURCE_COUNT = 5  # 최대 연관 리소스 수
 
 
 class RecommendService:
     """
-    규칙 기반 강의 추천 서비스
+    규칙 기반 연관 리소스 안내 서비스 (API-18)
 
-    추천 규칙:
-    1. 사용자의 수강 중인 강의 카테고리 분석
-    2. 가장 많이 수강한 카테고리 선택 (최빈 카테고리)
-    3. 해당 카테고리에서 미수강 강의 조회
-    4. 수강생 수 기준 내림차순 정렬하여 반환
-    5. 수강 이력 없으면 전체 강의 중 인기순 반환
+    처리 순서:
+    1. Enrollment Service에서 사용자의 PROVIDED / 진행 중 리소스 ID 조회
+    2. PROVIDED 리소스들의 카테고리 추출 (Course Service 조회)
+    3. 카테고리 연관 규칙 적용
+    4. Course Service에서 ACTIVE 후보 조회
+    5. 이미 PROVIDED 또는 진행 중인 리소스 제외
+    6. enrollmentCount(제공 완료 횟수) 내림차순, 최대 5개 반환
     """
 
-    MAX_RECOMMEND_COUNT = 5  # 최대 추천 강의 수
+    async def get_related_resources(self, user_id: int) -> RelatedResourceResponse:
+        logger.info(f"[RecommendService] 연관 리소스 조회 시작 - userId: {user_id}")
 
-    async def get_recommendations(self, user_id: int) -> RecommendResponse:
-        logger.info(f"[RecommendService] 추천 시작 - userId: {user_id}")
-
-        # 1. 수강 이력 조회
         history = await enrollment_client.get_enrollment_history(user_id)
-        active_course_ids = history.activeCourseIds
 
-        # 2. 수강 이력 없는 신규 사용자 처리
-        if not active_course_ids:
-            return await self._recommend_for_new_user(user_id)
+        # PROVIDED 이력이 없으면 빈 배열을 반환한다 (명세서 8. API-18)
+        if not history.providedCourseIds:
+            return RelatedResourceResponse(userId=user_id)
 
-        # 3. 수강한 강의의 카테고리 분석 → 최빈 카테고리 선택
-        dominant_category = await self._find_dominant_category(active_course_ids)
-        if not dominant_category:
-            return await self._recommend_for_new_user(user_id)
+        based_on_categories = await self._resolve_categories(history.providedCourseIds)
+        if not based_on_categories:
+            return RelatedResourceResponse(userId=user_id)
 
-        # 4. 최빈 카테고리 기반 미수강 강의 조회
-        recommended = await course_client.get_recommend_courses(
-            category=dominant_category,
-            exclude_ids=active_course_ids
+        related_categories = self._apply_relation_rule(based_on_categories)
+        if not related_categories:
+            return RelatedResourceResponse(
+                userId=user_id,
+                basedOnCategories=based_on_categories,
+            )
+
+        exclude_ids = list(set(history.providedCourseIds) | set(history.inProgressCourseIds))
+
+        candidates = await course_client.get_recommend_candidates(
+            categories=related_categories,
+            exclude_ids=exclude_ids,
+        )
+        resources = candidates[:MAX_RESOURCE_COUNT]
+
+        logger.info(
+            f"[RecommendService] 연관 리소스 조회 완료 - userId: {user_id}, "
+            f"basedOn: {based_on_categories}, related: {related_categories}, count: {len(resources)}"
         )
 
-        # 5. 최대 추천 수 제한
-        recommended = recommended[:self.MAX_RECOMMEND_COUNT]
-
-        logger.info(f"[RecommendService] 추천 완료 - userId: {user_id}, "
-                    f"category: {dominant_category}, count: {len(recommended)}")
-
-        return RecommendResponse(
+        return RelatedResourceResponse(
             userId=user_id,
-            recommendedCourses=recommended,
-            basedOnCategory=dominant_category,
-            message=f"{dominant_category.value} 카테고리 기반 추천 강의입니다"
+            basedOnCategories=based_on_categories,
+            relatedCategories=related_categories,
+            resources=resources,
         )
 
-    async def _find_dominant_category(
-        self, course_ids: List[int]
-    ) -> Optional[CourseCategory]:
-        """
-        수강한 강의들의 카테고리 분석 → 최빈 카테고리 반환
-        Course Service에서 각 강의 정보를 조회하여 카테고리 집계
-        """
-        all_courses = await course_client.get_all_courses()
-        course_map = {c.id: c for c in all_courses}
+    async def _resolve_categories(self, course_ids: List[int]) -> List[CourseCategory]:
+        """제공 완료된 리소스 ID 목록 → 중복 제거된 카테고리 목록"""
+        categories: List[CourseCategory] = []
+        for course_id in course_ids:
+            course = await course_client.get_course(course_id)
+            if course and course.category not in categories:
+                categories.append(course.category)
+        return categories
 
-        categories = [
-            course_map[cid].category
-            for cid in course_ids
-            if cid in course_map
-        ]
-
-        if not categories:
-            return None
-
-        # Counter로 최빈 카테고리 선택
-        most_common = Counter(categories).most_common(1)
-        return most_common[0][0] if most_common else None
-
-    async def _recommend_for_new_user(self, user_id: int) -> RecommendResponse:
-        """
-        신규 사용자: 수강생 수 기준 전체 인기 강의 추천
-        """
-        logger.info(f"[RecommendService] 신규 사용자 추천 - userId: {user_id}")
-
-        all_courses = await course_client.get_all_courses()
-        popular = sorted(
-            all_courses,
-            key=lambda c: c.enrollmentCount,
-            reverse=True
-        )[:self.MAX_RECOMMEND_COUNT]
-
-        return RecommendResponse(
-            userId=user_id,
-            recommendedCourses=popular,
-            basedOnCategory=None,
-            message="인기 강의 추천입니다"
-        )
+    def _apply_relation_rule(self, based_on_categories: List[CourseCategory]) -> List[CourseCategory]:
+        related: List[CourseCategory] = []
+        for category in based_on_categories:
+            for related_category in CATEGORY_RELATION_MAP.get(category, []):
+                if related_category not in related and related_category not in based_on_categories:
+                    related.append(related_category)
+        return related
 
 
 recommend_service = RecommendService()
