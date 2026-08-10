@@ -47,7 +47,8 @@ eureka:
 # Kafka 토픽명
 kafka:
   topic:
-    payment-completed: payment.completed
+    provision-status-changed: provision.status-changed
+    resource-provided: resource.provided
 
 springdoc:
   api-docs:
