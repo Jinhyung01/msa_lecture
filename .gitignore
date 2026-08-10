@@ -1,0 +1,36 @@
+# macOS / IDE
+.DS_Store
+.idea/
+*.iml
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Frontend dependencies and build output
+**/node_modules/
+**/dist/
+
+# Java build output
+**/build/
+**/target/
+**/.gradle/
+
+# Python cache and virtual environments
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Docker image archives and split parts
+infra-images.tar
+msa-lecture-images.tar.gz
+msa-lecture-images.part.*
+
+# Packaged source archives
+*.zip
+
+# Generated working/rendering files
+tmp/
+
