@@ -38,6 +38,19 @@ public class PaymentController {
     }
 
     /**
+     * 신청자가 REQUESTED 상태의 신청을 취소할 때 Enrollment Service가 호출한다.
+     */
+    @PatchMapping("/internal/{id}/cancel")
+    public ResponseEntity<PaymentDto.PaymentResponse> cancelByRequester(
+            @PathVariable Long id,
+            @Valid @RequestBody PaymentDto.InternalCancelRequest request) {
+        if (!"REQUESTER".equals(request.getRequestedBy())) {
+            throw ApiException.forbidden("신청자 취소 요청만 처리할 수 있습니다.");
+        }
+        return ResponseEntity.ok(paymentService.cancelByRequester(id, request.getReason()));
+    }
+
+    /**
      * API-12: 관리자 제공 작업 목록
      */
     @GetMapping("/admin")

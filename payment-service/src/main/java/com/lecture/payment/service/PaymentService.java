@@ -118,6 +118,16 @@ public class PaymentService {
         return PaymentDto.PaymentResponse.from(payment);
     }
 
+    @Transactional
+    public PaymentDto.PaymentResponse cancelByRequester(Long id, String reason) {
+        Payment payment = findOrThrow(id);
+        Payment.Status previous = payment.getStatus();
+        payment.cancelByRequester(reason);
+        paymentRepository.flush();
+        kafkaProducer.publishStatusChanged(payment, previous, reason);
+        return PaymentDto.PaymentResponse.from(payment);
+    }
+
     private Payment findOrThrow(Long id) {
         return paymentRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("제공 작업을 찾을 수 없습니다: " + id));

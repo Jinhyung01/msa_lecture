@@ -89,9 +89,19 @@ public class EnrollmentDto {
         }
 
         public static EnrollmentResponse from(Enrollment enrollment, CourseSummary course) {
+            return from(enrollment, course, null, null);
+        }
+
+        public static EnrollmentResponse from(
+                Enrollment enrollment,
+                CourseSummary course,
+                String userName,
+                String userIdentifier) {
             return EnrollmentResponse.builder()
                     .id(enrollment.getId())
                     .userId(enrollment.getUserId())
+                    .userName(userName)
+                    .userIdentifier(userIdentifier)
                     .courseId(enrollment.getCourseId())
                     .paymentId(enrollment.getPaymentId())
                     .reason(enrollment.getReason())
