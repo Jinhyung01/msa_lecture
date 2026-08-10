@@ -1,7 +1,6 @@
 import logging
-from fastapi import APIRouter, Depends
-from app.config.security import verify_token
-from app.model.schemas import RecommendResponse
+from fastapi import APIRouter, Header
+from app.model.schemas import RelatedResourceResponse
 from app.service.recommend_service import recommend_service
 
 logger = logging.getLogger(__name__)
@@ -9,20 +8,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/recommend", tags=["recommend"])
 
 
-@router.get("/{user_id}", response_model=RecommendResponse)
-async def get_recommendations(
-    user_id: int,
-    token_payload: dict = Depends(verify_token)
+@router.get("/me", response_model=RelatedResourceResponse)
+async def get_related_resources(
+    x_user_id: int = Header(..., alias="X-User-Id")
 ):
     """
-    GET /recommend/{userId} - 사용자 기반 강의 추천
-
-    추천 규칙:
-    - 수강 이력 있음: 최빈 카테고리 기반 미수강 강의 추천 (수강생 수 기준 정렬)
-    - 수강 이력 없음: 전체 인기 강의 추천
+    GET /api/recommend/me - 연관 리소스 안내 (API-18)
+    다른 서비스와 동일하게 Gateway가 전달한 X-User-Id 헤더를 사용한다
+    (body/JWT의 userId는 신뢰하지 않는다 - 명세서 6.1).
     """
-    logger.info(f"[Router] 추천 요청 - userId: {user_id}")
-    return await recommend_service.get_recommendations(user_id)
+    logger.info(f"[Router] 연관 리소스 요청 - userId: {x_user_id}")
+    return await recommend_service.get_related_resources(x_user_id)
 
 
 @router.get("/health", include_in_schema=False)

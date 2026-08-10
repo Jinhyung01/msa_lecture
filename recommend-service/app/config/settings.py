@@ -21,10 +21,10 @@ class Settings(BaseSettings):
     enrollment_service_url: str = "http://localhost:8083"
     course_service_url: str = "http://localhost:8082"
 
-    # Kafka
+    # Kafka - 제공 완료 이벤트 (담당: 백엔드 C가 발행)
     kafka_bootstrap_servers: str = "localhost:9092"
     kafka_consumer_group_id: str = "recommend-service"
-    kafka_topic_enrollment_completed: str = "enrollment.completed"
+    kafka_topic_resource_provided: str = "resource.provided"
 
     class Config:
         env_file = ".env"

@@ -1,9 +1,12 @@
 import logging
 import py_eureka_client.eureka_client as eureka_client
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from datetime import datetime
 from app.config.settings import settings
-from app.kafka.consumer import enrollment_consumer
+from app.kafka.consumer import resource_provided_consumer
 from app.router import recommend_router
 
 logging.basicConfig(
@@ -34,7 +37,7 @@ async def lifespan(app: FastAPI):
 
     # Kafka Consumer 시작
     try:
-        enrollment_consumer.start()
+        resource_provided_consumer.start()
         logger.info("[Kafka] Consumer 시작 완료")
     except Exception as e:
         logger.warning(f"[Kafka] Consumer 시작 실패: {e}")
@@ -43,19 +46,37 @@ async def lifespan(app: FastAPI):
 
     # 종료 시
     logger.info(f"[{settings.app_name}] 서비스 종료")
-    enrollment_consumer.stop()
+    resource_provided_consumer.stop()
     await eureka_client.stop_async()
 
 
 app = FastAPI(
     title="Recommend Service",
-    description="온라인 강의 플랫폼 - 규칙 기반 강의 추천 서비스",
+    description="사내 IT 리소스 플랫폼 - 규칙 기반 연관 리소스 안내 서비스",
     version="0.0.1",
     lifespan=lifespan
 )
 
 # 라우터 등록
 app.include_router(recommend_router.router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    통합 개발 구현 명세서 6.4 공통 오류 응답 포맷에 맞춘다.
+    X-User-Id 헤더 누락 등은 인증 정보 없음(UNAUTHORIZED)으로 처리한다.
+    """
+    return JSONResponse(
+        status_code=401,
+        content={
+            "timestamp": datetime.now().isoformat(),
+            "status": 401,
+            "code": "UNAUTHORIZED",
+            "message": "인증 정보가 없습니다 (X-User-Id 헤더 확인)",
+            "path": str(request.url.path),
+        },
+    )
 
 
 @app.get("/health")
