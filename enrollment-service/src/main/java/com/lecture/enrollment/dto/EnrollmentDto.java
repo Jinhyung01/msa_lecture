@@ -1,25 +1,52 @@
 package com.lecture.enrollment.dto;
 
 import com.lecture.enrollment.entity.Enrollment;
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public class EnrollmentDto {
 
-    // 수강신청 요청
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
     public static class EnrollRequest {
-        @NotNull(message = "강의 ID는 필수입니다")
+        @NotNull(message = "리소스 ID는 필수입니다.")
         private Long courseId;
+
+        @NotBlank(message = "신청 사유는 필수입니다.")
+        @Size(min = 10, max = 500, message = "신청 사유는 10자 이상 500자 이하로 입력해 주세요.")
+        private String reason;
+
+        @NotNull(message = "신청 수량은 필수입니다.")
+        @Min(value = 1, message = "신청 수량은 1 이상이어야 합니다.")
+        @Max(value = 100, message = "신청 수량은 100 이하여야 합니다.")
+        private Integer quantity;
+
+        @Future(message = "희망 제공일은 오늘 이후여야 합니다.")
+        private LocalDate desiredDate;
     }
 
-    // 강의 요약 정보 (내 수강 목록 표시용)
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CancelRequest {
+        @NotBlank(message = "취소 사유는 필수입니다.")
+        @Size(min = 5, max = 500, message = "취소 사유는 5자 이상 500자 이하로 입력해 주세요.")
+        private String reason;
+    }
+
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -29,13 +56,13 @@ public class EnrollmentDto {
         private String title;
         private String description;
         private String category;
-        private Integer price;
+        private BigDecimal price;
         private String thumbnail;
         private String instructorName;
         private Integer enrollmentCount;
+        private String status;
     }
 
-    // 수강 응답
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -43,21 +70,22 @@ public class EnrollmentDto {
     public static class EnrollmentResponse {
         private Long id;
         private Long userId;
+        private String userName;
+        private String userIdentifier;
         private Long courseId;
+        private Long paymentId;
+        private String reason;
+        private Integer quantity;
+        private LocalDate desiredDate;
         private Enrollment.Status status;
+        private String rejectReason;
+        private String cancelReason;
         private LocalDateTime createdAt;
-
-        // 추가
+        private LocalDateTime updatedAt;
         private CourseSummary course;
 
         public static EnrollmentResponse from(Enrollment enrollment) {
-            return EnrollmentResponse.builder()
-                    .id(enrollment.getId())
-                    .userId(enrollment.getUserId())
-                    .courseId(enrollment.getCourseId())
-                    .status(enrollment.getStatus())
-                    .createdAt(enrollment.getCreatedAt())
-                    .build();
+            return from(enrollment, null);
         }
 
         public static EnrollmentResponse from(Enrollment enrollment, CourseSummary course) {
@@ -65,24 +93,35 @@ public class EnrollmentDto {
                     .id(enrollment.getId())
                     .userId(enrollment.getUserId())
                     .courseId(enrollment.getCourseId())
+                    .paymentId(enrollment.getPaymentId())
+                    .reason(enrollment.getReason())
+                    .quantity(enrollment.getQuantity())
+                    .desiredDate(enrollment.getDesiredDate())
                     .status(enrollment.getStatus())
+                    .rejectReason(enrollment.getRejectReason())
+                    .cancelReason(enrollment.getCancelReason())
                     .createdAt(enrollment.getCreatedAt())
+                    .updatedAt(enrollment.getUpdatedAt())
                     .course(course)
                     .build();
         }
     }
 
-    // 추천 서비스용: 수강 이력 조회 응답
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
     public static class EnrollmentHistoryResponse {
         private Long userId;
+        private List<Long> providedCourseIds;
+
+        /**
+         * 기존 Recommend Service와의 전환기 호환 필드.
+         * providedCourseIds와 같은 값을 반환한다.
+         */
         private List<Long> activeCourseIds;
     }
 
-    // 공통 API 응답 래퍼
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
@@ -97,13 +136,6 @@ public class EnrollmentDto {
                     .success(true)
                     .message("성공")
                     .data(data)
-                    .build();
-        }
-
-        public static <T> ApiResponse<T> error(String message) {
-            return ApiResponse.<T>builder()
-                    .success(false)
-                    .message(message)
                     .build();
         }
     }

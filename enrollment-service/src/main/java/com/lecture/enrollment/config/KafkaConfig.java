@@ -9,23 +9,23 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class KafkaConfig {
 
-    @Value("${kafka.topic.payment-completed}")
-    private String paymentCompletedTopic;
+    @Value("${kafka.topic.provision-status-changed}")
+    private String provisionStatusChangedTopic;
 
-    @Value("${kafka.topic.enrollment-completed}")
-    private String enrollmentCompletedTopic;
+    @Value("${kafka.topic.resource-provided}")
+    private String resourceProvidedTopic;
 
     @Bean
-    public NewTopic paymentCompletedTopic() {
-        return TopicBuilder.name(paymentCompletedTopic)
+    public NewTopic provisionStatusChangedTopic() {
+        return TopicBuilder.name(provisionStatusChangedTopic)
                 .partitions(3)
                 .replicas(1)
                 .build();
     }
 
     @Bean
-    public NewTopic enrollmentCompletedTopic() {
-        return TopicBuilder.name(enrollmentCompletedTopic)
+    public NewTopic resourceProvidedTopic() {
+        return TopicBuilder.name(resourceProvidedTopic)
                 .partitions(3)
                 .replicas(1)
                 .build();

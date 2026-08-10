@@ -15,44 +15,85 @@ public class EnrollmentKafkaConsumer {
 
     private final EnrollmentService enrollmentService;
 
-    /**
-     * payment.completed 이벤트 수신
-     * → 수강 상태 PENDING → ACTIVE 로 변경
-     * → enrollment.completed 이벤트 발행 (→ Recommend Service)
-     *
-     * payment-service 쪽은 JsonSerializer + type header 미포함으로 이벤트를 발행하므로,
-     * 여기서는 특정 DTO 타입으로 바로 받지 않고 Map<String, Object> 로 받아 처리한다.
-     */
     @KafkaListener(
-            topics = "${kafka.topic.payment-completed}",
+            topics = "${kafka.topic.provision-status-changed}",
             groupId = "${spring.kafka.consumer.group-id}",
             containerFactory = "kafkaListenerContainerFactory"
     )
-    public void handlePaymentCompleted(Map<String, Object> event) {
-        log.info("[Kafka Consumer] payment.completed raw event 수신: {}", event);
+    public void handleProvisionStatusChanged(Map<String, Object> rawEvent) {
+        handle("provision.status-changed", rawEvent);
+    }
 
+    @KafkaListener(
+            topics = "${kafka.topic.resource-provided}",
+            groupId = "${spring.kafka.consumer.group-id}",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
+    public void handleResourceProvided(Map<String, Object> rawEvent) {
+        handle("resource.provided", rawEvent);
+    }
+
+    private void handle(String topic, Map<String, Object> rawEvent) {
+        log.info("[Kafka Consumer] {} 이벤트 수신: {}", topic, rawEvent);
         try {
-            Object userIdValue = event.get("userId");
-            Object courseIdValue = event.get("courseId");
-
-            if (userIdValue == null || courseIdValue == null) {
-                throw new IllegalArgumentException("Kafka 이벤트에 userId 또는 courseId가 없습니다.");
-            }
-
-            Long userId = ((Number) userIdValue).longValue();
-            Long courseId = ((Number) courseIdValue).longValue();
-
-            log.info("[Kafka Consumer] payment.completed 파싱 완료 - userId: {}, courseId: {}",
-                    userId, courseId);
-
-            enrollmentService.activateEnrollment(userId, courseId);
-
-            log.info("[Kafka Consumer] 수강 활성화 완료 - userId: {}, courseId: {}",
-                    userId, courseId);
-
+            KafkaEvent.ProvisionStatusEvent event = toEvent(rawEvent);
+            validate(event);
+            boolean changed = enrollmentService.applyProvisionEvent(event);
+            log.info("[Kafka Consumer] {} 처리 완료 - eventId: {}, enrollmentId: {}, changed: {}",
+                    topic, event.getEventId(), event.getEnrollmentId(), changed);
         } catch (Exception e) {
-            log.error("[Kafka Consumer] 수강 활성화 실패 - event: {}, error: {}",
-                    event, e.getMessage(), e);
+            log.error("[Kafka Consumer] {} 처리 실패 - event: {}, error: {}",
+                    topic, rawEvent, e.getMessage(), e);
+            throw new IllegalStateException(topic + " 이벤트 처리 실패", e);
         }
+    }
+
+    private KafkaEvent.ProvisionStatusEvent toEvent(Map<String, Object> event) {
+        return KafkaEvent.ProvisionStatusEvent.builder()
+                .eventId(toStringValue(event.get("eventId")))
+                .eventType(toStringValue(event.get("eventType")))
+                .occurredAt(toStringValue(event.get("occurredAt")))
+                .provisionId(toLong(firstNonNull(
+                        event.get("provisionId"), event.get("paymentId"))))
+                .enrollmentId(toLong(event.get("enrollmentId")))
+                .userId(toLong(event.get("userId")))
+                .resourceId(toLong(firstNonNull(
+                        event.get("resourceId"), event.get("courseId"))))
+                .managerId(toLong(event.get("managerId")))
+                .previousStatus(toStringValue(event.get("previousStatus")))
+                .status(toStringValue(event.get("status")))
+                .reason(toStringValue(event.get("reason")))
+                .ticketNumber(toStringValue(event.get("ticketNumber")))
+                .resultMemo(toStringValue(event.get("resultMemo")))
+                .build();
+    }
+
+    private void validate(KafkaEvent.ProvisionStatusEvent event) {
+        if (event.getEventId() == null || event.getEventId().isBlank()) {
+            throw new IllegalArgumentException("eventId는 필수입니다.");
+        }
+        if (event.getEnrollmentId() == null) {
+            throw new IllegalArgumentException("enrollmentId는 필수입니다.");
+        }
+        if (event.getStatus() == null || event.getStatus().isBlank()) {
+            throw new IllegalArgumentException("status는 필수입니다.");
+        }
+    }
+
+    private Object firstNonNull(Object... values) {
+        for (Object value : values) {
+            if (value != null) return value;
+        }
+        return null;
+    }
+
+    private Long toLong(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number number) return number.longValue();
+        return Long.parseLong(value.toString());
+    }
+
+    private String toStringValue(Object value) {
+        return value == null ? null : value.toString();
     }
 }
