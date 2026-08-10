@@ -115,6 +115,12 @@ public class Payment {
         this.cancelReason = reason;
     }
 
+    public void cancelByRequester(String reason) {
+        requireStatus(Status.REQUESTED, "REQUESTED 상태에서만 신청자가 취소할 수 있습니다.");
+        this.status = Status.CANCELLED;
+        this.cancelReason = reason;
+    }
+
     private void requireStatus(Status expected, String message) {
         if (this.status != expected) {
             throw ApiException.invalidTransition(message);

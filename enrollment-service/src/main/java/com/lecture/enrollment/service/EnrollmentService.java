@@ -65,7 +65,7 @@ public class EnrollmentService {
 
             log.info("[EnrollmentService] 리소스 신청 완료 - enrollmentId: {}, paymentId: {}",
                     attached.getId(), attached.getPaymentId());
-            return EnrollmentDto.EnrollmentResponse.from(attached, toCourseSummary(courseInfo));
+            return toResponse(attached, courseInfo);
         } catch (RuntimeException e) {
             enrollmentWriteService.markProvisionCreationFailed(
                     enrollment.getId(), "제공 작업 생성 실패");
@@ -93,9 +93,9 @@ public class EnrollmentService {
         if (!enrollment.getUserId().equals(userId) && !isAdmin(userId)) {
             throw EnrollmentApiException.forbidden("본인의 신청만 조회할 수 있습니다.");
         }
-        return EnrollmentDto.EnrollmentResponse.from(
+        return toResponse(
                 enrollment,
-                toCourseSummary(courseServiceClient.getCourse(enrollment.getCourseId())));
+                courseServiceClient.getCourse(enrollment.getCourseId()));
     }
 
     @Transactional
@@ -122,9 +122,9 @@ public class EnrollmentService {
 
         log.info("[EnrollmentService] 신청자 취소 - enrollmentId: {}, userId: {}",
                 enrollmentId, userId);
-        return EnrollmentDto.EnrollmentResponse.from(
+        return toResponse(
                 enrollment,
-                toCourseSummary(courseServiceClient.getCourse(enrollment.getCourseId())));
+                courseServiceClient.getCourse(enrollment.getCourseId()));
     }
 
     public List<EnrollmentDto.EnrollmentResponse> getAdminEnrollments(
@@ -201,10 +201,21 @@ public class EnrollmentService {
 
     private List<EnrollmentDto.EnrollmentResponse> enrich(List<Enrollment> enrollments) {
         return enrollments.stream()
-                .map(enrollment -> EnrollmentDto.EnrollmentResponse.from(
+                .map(enrollment -> toResponse(
                         enrollment,
-                        toCourseSummary(courseServiceClient.getCourse(enrollment.getCourseId()))))
+                        courseServiceClient.getCourse(enrollment.getCourseId())))
                 .toList();
+    }
+
+    private EnrollmentDto.EnrollmentResponse toResponse(
+            Enrollment enrollment,
+            Map<String, Object> courseInfo) {
+        UserServiceClient.UserProfile user = userServiceClient.getProfile(enrollment.getUserId());
+        return EnrollmentDto.EnrollmentResponse.from(
+                enrollment,
+                toCourseSummary(courseInfo),
+                user.getName(),
+                user.getEmail());
     }
 
     private Map<String, Object> loadActiveCourse(Long courseId) {
@@ -225,6 +236,19 @@ public class EnrollmentService {
     }
 
     private EnrollmentDto.CourseSummary toCourseSummary(Map<String, Object> courseInfo) {
+        String instructorName = firstNonBlank(
+                Objects.toString(courseInfo.get("instructorName"), null),
+                Objects.toString(courseInfo.get("teacherName"), null),
+                Objects.toString(courseInfo.get("instructor_name"), null));
+        if (instructorName == null) {
+            Long instructorId = toLong(firstNonNull(
+                    courseInfo.get("instructorId"),
+                    courseInfo.get("instructor_id")));
+            if (instructorId != null) {
+                instructorName = userServiceClient.getProfile(instructorId).getName();
+            }
+        }
+
         return EnrollmentDto.CourseSummary.builder()
                 .id(toLong(courseInfo.get("id")))
                 .title(Objects.toString(courseInfo.get("title"), null))
@@ -232,10 +256,7 @@ public class EnrollmentService {
                 .category(Objects.toString(courseInfo.get("category"), null))
                 .price(toBigDecimal(courseInfo.get("price")))
                 .thumbnail(Objects.toString(courseInfo.get("thumbnail"), null))
-                .instructorName(firstNonBlank(
-                        Objects.toString(courseInfo.get("instructorName"), null),
-                        Objects.toString(courseInfo.get("teacherName"), null),
-                        Objects.toString(courseInfo.get("instructor_name"), null)))
+                .instructorName(instructorName)
                 .enrollmentCount(toInteger(firstNonNull(
                         courseInfo.get("enrollmentCount"),
                         courseInfo.get("enrollment_count"))))

@@ -3,7 +3,7 @@ package com.lecture.payment.dto;
 import com.lecture.payment.entity.Payment;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,8 +30,22 @@ public class PaymentDto {
         private Long courseId;
 
         @NotNull(message = "amount는 필수입니다")
-        @Positive(message = "amount는 양수여야 합니다")
+        @PositiveOrZero(message = "amount는 0 이상이어야 합니다")
         private BigDecimal amount;
+    }
+
+    // 신청자 취소 내부 요청 (Enrollment Service -> Payment Service)
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class InternalCancelRequest {
+        @NotBlank(message = "reason은 필수입니다")
+        @Size(min = 5, max = 500, message = "reason은 5~500자여야 합니다")
+        private String reason;
+
+        @NotBlank(message = "requestedBy는 필수입니다")
+        private String requestedBy;
     }
 
     // API-07 응답
