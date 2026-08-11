@@ -9,19 +9,23 @@
           <div class="sidebar-label">메뉴</div>
 
           <router-link
-            to="/courses"
+            to="/resources"
             class="sidebar-item"
-            :class="{ active: $route.path === '/courses' }"
+            :class="{ active: $route.path === '/resources' }"
           >
-            <span class="si-icon">📚</span> 강의 목록
+            <span class="si-icon">🖥️</span> 리소스 목록
           </router-link>
 
           <router-link
-            to="/courses/new"
+            to="/resources/new"
             class="sidebar-item"
-            :class="{ active: $route.path === '/courses/new' }"
+            :class="{ active: $route.path === '/resources/new' }"
           >
-            <span class="si-icon">✍️</span> 강의 등록
+            <span class="si-icon">✍️</span> 리소스 등록
+          </router-link>
+
+          <router-link to="/admin/requests" class="sidebar-item">
+            <span class="si-icon">🗂️</span> 요청 관리
           </router-link>
 
           <router-link to="/mypage" class="sidebar-item">
@@ -31,9 +35,6 @@
 
         <div class="sidebar-section">
           <div class="sidebar-label">계정</div>
-          <router-link to="/mypage" class="sidebar-item">
-            <span class="si-icon">👤</span> 마이페이지
-          </router-link>
           <button class="sidebar-item sidebar-btn" @click="handleLogout">
             <span class="si-icon">🚪</span> 로그아웃
           </button>
@@ -44,63 +45,48 @@
       <main class="main-content">
         <div class="content-header">
           <div>
-            <h1 class="page-title">강의 등록</h1>
-            <p class="page-subtitle">강사 계정으로 새로운 강의를 등록합니다.</p>
+            <h1 class="page-title">리소스 등록</h1>
+            <p class="page-subtitle">관리자 계정으로 새로운 리소스를 등록합니다.</p>
           </div>
         </div>
 
         <div class="form-card">
           <form class="course-form" @submit.prevent="handleSubmit">
             <div class="form-group">
-              <label class="form-label" for="title">강의명</label>
+              <label class="form-label" for="title">리소스명</label>
               <input
                 id="title"
                 v-model.trim="form.title"
                 type="text"
                 class="form-input"
-                placeholder="예: Cloud Native App기반 Web Service 개발"
+                placeholder="예: AWS 개발 서버"
                 maxlength="100"
               />
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="description">강의 설명</label>
+              <label class="form-label" for="description">설명 및 제공 조건</label>
               <textarea
                 id="description"
                 v-model.trim="form.description"
                 class="form-textarea"
                 rows="6"
-                placeholder="강의 소개, 학습 목표, 대상 등을 입력해 주세요."
+                placeholder="리소스 설명, 제공 조건, 사용 목적 예시 등을 입력해 주세요."
               ></textarea>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="category">카테고리</label>
-                <select id="category" v-model="form.category" class="form-select">
-                  <option disabled value="">카테고리를 선택하세요</option>
-                  <option
-                    v-for="option in categoryOptions"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label" for="price">가격</label>
-                <input
-                  id="price"
-                  v-model.number="form.price"
-                  type="number"
-                  min="0"
-                  step="1000"
-                  class="form-input"
-                  placeholder="예: 50000"
-                />
-              </div>
+            <div class="form-group">
+              <label class="form-label" for="category">카테고리</label>
+              <select id="category" v-model="form.category" class="form-select">
+                <option disabled value="">카테고리를 선택하세요</option>
+                <option
+                  v-for="option in categoryOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
             </div>
 
             <div v-if="validationError" class="error-box">
@@ -116,13 +102,13 @@
             </div>
 
             <div class="form-actions">
-              <router-link to="/courses" class="btn btn-ghost">
+              <router-link to="/resources" class="btn btn-ghost">
                 취소
               </router-link>
 
               <button type="submit" class="btn btn-primary" :disabled="submitting">
                 <span v-if="submitting">등록 중...</span>
-                <span v-else>강의 등록</span>
+                <span v-else>리소스 등록</span>
               </button>
             </div>
           </form>
@@ -136,8 +122,9 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
-import { courseApi } from '@/api/course.js'
+import { resourceApi } from '@/api/course.js'
 import { useAuthStore } from '@/store/auth.js'
+import { mapErrorMessage } from '@/utils/errorMessage.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -145,8 +132,7 @@ const auth = useAuthStore()
 const form = reactive({
   title: '',
   description: '',
-  category: '',
-  price: null
+  category: ''
 })
 
 const submitting = ref(false)
@@ -155,10 +141,15 @@ const submitError = ref('')
 const submitSuccess = ref('')
 
 const categoryOptions = [
-  { label: '백엔드', value: 'BACKEND' },
-  { label: '프론트엔드', value: 'FRONTEND' },
-  { label: 'DevOps', value: 'DEVOPS' },
-  { label: 'AI / 데이터', value: 'DATA_SCIENCE' }
+  { label: '서버', value: 'SERVER' },
+  { label: '클라우드', value: 'CLOUD' },
+  { label: '라이선스', value: 'LICENSE' },
+  { label: '데이터', value: 'DATA' },
+  { label: '계정', value: 'ACCOUNT' },
+  { label: '네트워크', value: 'NETWORK' },
+  { label: '보안', value: 'SECURITY' },
+  { label: 'IT 장비', value: 'PHYSICAL_DEVICE' },
+  { label: '기타', value: 'OTHER' }
 ]
 
 function handleLogout() {
@@ -170,33 +161,22 @@ function validateForm() {
   validationError.value = ''
 
   if (!auth.user || auth.user.role !== 'INSTRUCTOR') {
-    validationError.value = '강사 계정만 강의를 등록할 수 있습니다.'
+    validationError.value = '관리자 계정만 리소스를 등록할 수 있습니다.'
     return false
   }
 
   if (!form.title) {
-    validationError.value = '강의명을 입력해 주세요.'
+    validationError.value = '리소스명을 입력해 주세요.'
     return false
   }
 
   if (!form.description) {
-    validationError.value = '강의 설명을 입력해 주세요.'
+    validationError.value = '설명 및 제공 조건을 입력해 주세요.'
     return false
   }
 
   if (!form.category) {
     validationError.value = '카테고리를 선택해 주세요.'
-    return false
-  }
-
-  if (form.price === null || form.price === undefined || form.price === '') {
-    validationError.value = '가격을 입력해 주세요.'
-    return false
-  }
-
-  const price = Number(form.price)
-  if (Number.isNaN(price) || price < 0) {
-    validationError.value = '가격은 0 이상의 숫자로 입력해 주세요.'
     return false
   }
 
@@ -216,13 +196,14 @@ async function handleSubmit() {
       title: form.title,
       description: form.description,
       category: form.category,
-      price: Number(form.price)
+      // 백엔드 스키마에는 아직 price 컬럼이 남아 있어(필수) UI 없이 0으로 채워 보낸다.
+      price: 0
     }
 
-    const res = await courseApi.create(payload)
+    const res = await resourceApi.create(payload)
     console.log('[CourseCreate] create response =', res.data)
 
-    submitSuccess.value = '강의가 성공적으로 등록되었습니다.'
+    submitSuccess.value = '리소스가 성공적으로 등록되었습니다.'
 
     const createdCourseId =
       res.data?.data?.id ??
@@ -230,18 +211,16 @@ async function handleSubmit() {
 
     if (createdCourseId) {
       setTimeout(() => {
-        router.push(`/courses/${createdCourseId}`)
+        router.push(`/resources/${createdCourseId}`)
       }, 500)
     } else {
       setTimeout(() => {
-        router.push('/courses')
+        router.push('/resources')
       }, 500)
     }
   } catch (error) {
     console.error('[CourseCreate] create failed:', error)
-    submitError.value =
-      error.response?.data?.message ||
-      '강의 등록에 실패했습니다.'
+    submitError.value = mapErrorMessage(error)
   } finally {
     submitting.value = false
   }
@@ -358,12 +337,6 @@ async function handleSubmit() {
   gap: 18px;
 }
 
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
 .form-group {
   display: flex;
   flex-direction: column;
@@ -406,16 +379,16 @@ async function handleSubmit() {
 }
 
 .error-box {
-  background: #fef2f2;
-  color: #dc2626;
+  background: var(--color-danger-light);
+  color: var(--color-danger);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   font-size: 13px;
 }
 
 .success-box {
-  background: #ecfdf3;
-  color: #15803d;
+  background: var(--color-success-light);
+  color: var(--color-success);
   border-radius: var(--radius-md);
   padding: 12px 14px;
   font-size: 13px;
@@ -430,10 +403,6 @@ async function handleSubmit() {
 
 @media (max-width: 992px) {
   .page-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .form-row {
     grid-template-columns: 1fr;
   }
 }

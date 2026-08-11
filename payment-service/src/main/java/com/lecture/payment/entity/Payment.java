@@ -61,6 +61,9 @@ public class Payment {
     @Column(name = "provided_at")
     private LocalDateTime providedAt;
 
+    @Column(name = "returned_at")
+    private LocalDateTime returnedAt;
+
     @CreatedDate
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -73,6 +76,9 @@ public class Payment {
         ACCEPTED,
         PROVISIONING,
         PROVIDED,
+        RETURN_REQUESTED,
+        RETURNED,
+        CANCEL_REQUESTED,
         REJECTED,
         CANCELLED
     }
@@ -116,9 +122,29 @@ public class Payment {
     }
 
     public void cancelByRequester(String reason) {
-        requireStatus(Status.REQUESTED, "REQUESTED 상태에서만 신청자가 취소할 수 있습니다.");
-        this.status = Status.CANCELLED;
+        if (status != Status.REQUESTED && status != Status.ACCEPTED && status != Status.PROVISIONING) {
+            throw ApiException.invalidTransition("취소할 수 없는 상태입니다.");
+        }
+        this.status = Status.CANCEL_REQUESTED;
         this.cancelReason = reason;
+    }
+
+    public void approveCancel(Long managerId) {
+        requireStatus(Status.CANCEL_REQUESTED, "CANCEL_REQUESTED 상태에서만 취소를 승인할 수 있습니다.");
+        this.status = Status.CANCELLED;
+        this.managerId = managerId;
+    }
+
+    public void returnByRequester() {
+        requireStatus(Status.PROVIDED, "PROVIDED 상태에서만 반납할 수 있습니다.");
+        this.status = Status.RETURN_REQUESTED;
+    }
+
+    public void collect(Long managerId) {
+        requireStatus(Status.RETURN_REQUESTED, "RETURN_REQUESTED 상태에서만 수거할 수 있습니다.");
+        this.status = Status.RETURNED;
+        this.managerId = managerId;
+        this.returnedAt = LocalDateTime.now();
     }
 
     private void requireStatus(Status expected, String message) {

@@ -71,6 +71,9 @@ public class Enrollment {
         ACCEPTED,
         PROVISIONING,
         PROVIDED,
+        RETURN_REQUESTED,
+        RETURNED,
+        CANCEL_REQUESTED,
         REJECTED,
         CANCELLED
     }
@@ -86,11 +89,20 @@ public class Enrollment {
     }
 
     public void cancelByRequester(String reason) {
-        if (this.status != Status.REQUESTED) {
-            throw new IllegalStateException("REQUESTED 상태의 신청만 취소할 수 있습니다.");
+        if (this.status != Status.REQUESTED
+                && this.status != Status.ACCEPTED
+                && this.status != Status.PROVISIONING) {
+            throw new IllegalStateException("취소할 수 없는 상태입니다: " + this.status);
         }
-        this.status = Status.CANCELLED;
+        this.status = Status.CANCEL_REQUESTED;
         this.cancelReason = reason;
+    }
+
+    public void returnByRequester() {
+        if (this.status != Status.PROVIDED) {
+            throw new IllegalStateException("제공 완료 상태의 신청만 반납할 수 있습니다.");
+        }
+        this.status = Status.RETURN_REQUESTED;
     }
 
     /**
@@ -148,7 +160,10 @@ public class Enrollment {
                     || next == Status.CANCELLED;
             case PROVISIONING -> next == Status.PROVIDED
                     || next == Status.CANCELLED;
-            case PROVIDED, REJECTED, CANCELLED -> false;
+            case PROVIDED -> next == Status.RETURN_REQUESTED;
+            case RETURN_REQUESTED -> next == Status.RETURNED;
+            case CANCEL_REQUESTED -> next == Status.CANCELLED;
+            case RETURNED, REJECTED, CANCELLED -> false;
         };
     }
 }

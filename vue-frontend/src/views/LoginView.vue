@@ -4,12 +4,12 @@
       <!-- 좌측 브랜딩 -->
       <div class="login-left">
         <div class="brand">
-          <img src="@/assets/images/logo/main_logo.png" alt="LearnNexus" class="brand-logo" />
-          <span class="brand-name">LearnNexus</span>
+          <img src="@/assets/images/logo/hubby_logo.svg" alt="Hubby" class="brand-logo" />
+          <span class="brand-name">Hubby</span>
         </div>
         <div class="brand-content">
           <h2>다시 만나서<br>반갑습니다</h2>
-          <p>로그인하고 나만의 학습 여정을 이어가세요.</p>
+          <p>이메일 주소로 로그인하고 IT 리소스 신청 현황을 확인하세요.</p>
           <ul class="feature-list">
             <li v-for="f in features" :key="f">
               <span class="dot"></span>{{ f }}
@@ -26,11 +26,21 @@
           <!-- 로그인 영역 -->
           <div v-if="!showRegister" class="section">
             <h3 class="section-title">로그인</h3>
-            <p class="section-desc">LearnNexus 계정으로 로그인합니다.</p>
+            <p class="section-desc">이메일 주소로 로그인합니다.</p>
             <button class="btn btn-primary btn-full" @click="handleOAuth">로그인</button>
+            <p v-if="oauthError" class="error-msg">{{ oauthError }}</p>
             <div class="switch-link">
               계정이 없으신가요?
               <button class="text-btn" @click="showRegister = true">회원가입</button>
+            </div>
+
+            <!-- 개발 모드 전용: 백엔드 없이 화면을 둘러보기 위한 미리보기 로그인 -->
+            <div v-if="isDev" class="preview-box">
+              <p class="preview-label">미리보기 (개발용 · 백엔드 없이 화면 확인)</p>
+              <div class="preview-actions">
+                <button class="btn btn-outline btn-full" @click="handlePreviewLogin('STUDENT')">신청자로 미리보기</button>
+                <button class="btn btn-outline btn-full" @click="handlePreviewLogin('INSTRUCTOR')">관리자로 미리보기</button>
+              </div>
             </div>
           </div>
 
@@ -43,8 +53,8 @@
                 <input v-model="registerForm.name" type="text" class="form-input" placeholder="홍길동" required />
               </div>
               <div class="form-group">
-                <label class="form-label">이메일</label>
-                <input v-model="registerForm.email" type="email" class="form-input" placeholder="user@example.com" required />
+                <label class="form-label">이메일 주소</label>
+                <input v-model="registerForm.email" type="text" class="form-input" placeholder="예: hong@company.com" required />
               </div>
               <div class="form-group">
                 <label class="form-label">비밀번호</label>
@@ -53,8 +63,8 @@
               <div class="form-group">
                 <label class="form-label">역할</label>
                 <select v-model="registerForm.role" class="form-input">
-                  <option value="STUDENT">학생</option>
-                  <option value="INSTRUCTOR">강사</option>
+                  <option value="STUDENT">신청자</option>
+                  <option value="INSTRUCTOR">리소스 관리자</option>
                 </select>
               </div>
               <div v-if="error" class="error-msg">{{ error }}</div>
@@ -78,22 +88,41 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth.js'
 import { authApi } from '@/api/auth.js'
+import { isAdmin } from '@/utils/role.js'
 
 const auth = useAuthStore()
+const router = useRouter()
+
+// 목업 백엔드가 꺼져 있으면(VITE_USE_MOCKS=false) 미리보기 로그인도 숨긴다 —
+// 실제 API Gateway에 가짜 토큰을 보내면 그대로 401이 나기 때문이다.
+const isDev = import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS === 'true'
 
 const showRegister = ref(false)
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
+const oauthError = ref('')
 
 const registerForm = ref({ name: '', email: '', password: '', role: 'STUDENT' })
 
-const features = ['수강 중인 강의 이어보기', '맞춤 강의 추천', '수료증 관리']
+const features = ['내 신청 내역 확인', '제공 상태 실시간 확인', '연관 리소스 안내']
 
 function handleOAuth() {
-  auth.redirectToLogin()
+  oauthError.value = ''
+  try {
+    auth.redirectToLogin()
+  } catch (e) {
+    console.error('[LoginView] redirectToLogin failed:', e)
+    oauthError.value = '인증 서버에 연결할 수 없습니다.'
+  }
+}
+
+function handlePreviewLogin(role) {
+  auth.mockLogin(role)
+  router.push(isAdmin(auth.user) ? '/admin/requests' : '/resources')
 }
 
 async function handleRegister() {
@@ -129,7 +158,7 @@ async function handleRegister() {
   min-height: 100vh;
 }
 .login-left {
-  background: linear-gradient(160deg, #1a4f8a 0%, #185FA5 50%, #1e7bc4 100%);
+  background: linear-gradient(160deg, var(--color-primary-dark) 0%, var(--color-primary) 50%, var(--color-secondary) 100%);
   padding: 48px;
   display: flex;
   flex-direction: column;
@@ -185,6 +214,23 @@ async function handleRegister() {
 .form-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-light); }
 .btn-full { width: 100%; padding: 12px; font-size: 15px; justify-content: center; margin-top: 4px; }
 
+.preview-box {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+.preview-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+}
+.preview-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .switch-link {
   text-align: center;
   font-size: 13px;
@@ -203,18 +249,18 @@ async function handleRegister() {
 }
 .error-msg {
   padding: 10px 14px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--color-danger-light);
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   font-size: 13px;
-  color: #dc2626;
+  color: var(--color-danger);
 }
 .success-msg {
   padding: 10px 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--color-success-light);
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   font-size: 13px;
-  color: #16a34a;
+  color: var(--color-success);
 }
 </style>

@@ -11,6 +11,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/store/auth.js'
+import { isAdmin } from '@/utils/role.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -32,8 +33,8 @@ onMounted(async () => {
       error,
       errorDescription
     })
-    message.value = '로그인에 실패했습니다. 다시 시도해주세요.'
-    router.replace('/login')
+    message.value = '이메일 주소 또는 비밀번호를 확인해 주세요.'
+    setTimeout(() => router.replace('/login'), 1200)
     return
   }
 
@@ -47,11 +48,11 @@ onMounted(async () => {
   try {
     await auth.handleCallback(code)
     message.value = '로그인 완료! 이동 중입니다...'
-    router.replace('/courses')
+    router.replace(isAdmin(auth.user) ? '/admin/requests' : '/resources')
   } catch (err) {
     console.error('OAuth callback 처리 실패:', err)
-    message.value = '로그인 처리에 실패했습니다.'
-    router.replace('/login')
+    message.value = '인증 서버에 연결할 수 없습니다.'
+    setTimeout(() => router.replace('/login'), 1200)
   }
 })
 </script>

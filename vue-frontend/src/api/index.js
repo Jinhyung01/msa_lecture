@@ -7,6 +7,15 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
+// 목업 백엔드는 명시적으로 VITE_USE_MOCKS=true 로 켰을 때만 붙는다.
+// 기본값은 꺼짐: 실제 API Gateway(localhost:8080)를 그대로 사용한다.
+// import.meta.env.DEV가 build 시점에 상수로 치환되므로 production 빌드에는 mocks 코드가 포함되지 않는다.
+if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS === 'true') {
+  import('@/mocks/mockAdapter.js').then(({ mockAdapter }) => {
+    api.defaults.adapter = mockAdapter
+  })
+}
+
 api.interceptors.request.use((config) => {
   const auth = useAuthStore()
   if (auth.accessToken) {

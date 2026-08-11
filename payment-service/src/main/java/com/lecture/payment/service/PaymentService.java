@@ -128,6 +128,48 @@ public class PaymentService {
         return PaymentDto.PaymentResponse.from(payment);
     }
 
+    /**
+     * 신청자가 제공 완료된 리소스를 반납할 때 Enrollment Service가 호출한다.
+     * Enrollment 쪽 상태는 호출 전에 이미 직접 바꿔두므로(cancelByRequester와 동일한 패턴)
+     * 여기서는 Kafka를 발행하지 않고 Payment 상태만 맞춘다.
+     */
+    @Transactional
+    public PaymentDto.PaymentResponse returnByRequester(Long id) {
+        Payment payment = findOrThrow(id);
+        payment.returnByRequester();
+        paymentRepository.flush();
+        return PaymentDto.PaymentResponse.from(payment);
+    }
+
+    @Transactional
+    public PaymentDto.PaymentResponse approveCancel(Long id, Long managerId) {
+        Payment payment = findOrThrow(id);
+        Payment.Status previous = payment.getStatus();
+        payment.approveCancel(managerId);
+        paymentRepository.flush();
+        kafkaProducer.publishStatusChanged(payment, previous, payment.getCancelReason());
+        return PaymentDto.PaymentResponse.from(payment);
+    }
+
+    @Transactional
+    public PaymentDto.PaymentResponse collect(Long id, Long managerId) {
+        Payment payment = findOrThrow(id);
+        Payment.Status previous = payment.getStatus();
+        payment.collect(managerId);
+        paymentRepository.flush();
+        kafkaProducer.publishStatusChanged(payment, previous, null);
+        return PaymentDto.PaymentResponse.from(payment);
+    }
+
+    /**
+     * 신청자가 취소·수거완료된 신청 기록을 지울 때 Enrollment Service가 호출한다.
+     */
+    @Transactional
+    public void delete(Long id) {
+        Payment payment = findOrThrow(id);
+        paymentRepository.delete(payment);
+    }
+
     private Payment findOrThrow(Long id) {
         return paymentRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("제공 작업을 찾을 수 없습니다: " + id));

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { courseApi } from '@/api/course.js'
+import { resourceApi } from '@/api/course.js'
+import { mapErrorMessage } from '@/utils/errorMessage.js'
 
 export const useCourseStore = defineStore('course', () => {
   const courses = ref([])
@@ -9,33 +10,32 @@ export const useCourseStore = defineStore('course', () => {
   const error = ref(null)
   const selectedCategory = ref('전체')
 
-  const categories = ['전체', '백엔드', '프론트엔드', 'DevOps', '데이터', 'AI']
+  const categories = ['전체', '서버', '클라우드', '라이선스', '데이터', '계정', '네트워크', '보안', 'IT 장비', '기타']
 
-  // 백엔드 카테고리 → 프론트 표시용 카테고리
+  // 백엔드 카테고리 코드 → 프론트 표시용 한글 카테고리
   const categoryLabelMap = {
-    BACKEND: '백엔드',
-    FRONTEND: '프론트엔드',
-    DEVOPS: 'DevOps',
+    SERVER: '서버',
+    CLOUD: '클라우드',
+    LICENSE: '라이선스',
     DATA: '데이터',
-    AI: 'AI'
+    ACCOUNT: '계정',
+    NETWORK: '네트워크',
+    SECURITY: '보안',
+    PHYSICAL_DEVICE: 'IT 장비',
+    OTHER: '기타'
   }
 
-  // 썸네일 이미지 매핑
-  const thumbnailMap = {
-    SPRING: new URL('../assets/images/courses/spring_boot.png', import.meta.url).href,
-    VUE: new URL('../assets/images/courses/vue_js.png', import.meta.url).href,
-    DOCKER: new URL('../assets/images/courses/docker.png', import.meta.url).href,
-    KUBERNETES: new URL('../assets/images/courses/kubernetes.png', import.meta.url).href,
-    PYTHON: new URL('../assets/images/courses/python.png', import.meta.url).href,
-    AI: new URL('../assets/images/courses/generative_ai.png', import.meta.url).href,
-  }
-
-  const categoryThumbnailMap = {
-    '백엔드': thumbnailMap.SPRING,
-    '프론트엔드': thumbnailMap.VUE,
-    'DevOps': thumbnailMap.KUBERNETES,
-    '데이터': thumbnailMap.PYTHON,
-    'AI': thumbnailMap.AI
+  // 카테고리별 아이콘/색상 (썸네일 이미지 대체)
+  const categoryIconMap = {
+    '서버': { icon: '🖥️', bg: 'thumb-teal', badge: 'badge-teal' },
+    '클라우드': { icon: '☁️', bg: 'thumb-blue', badge: 'badge-blue' },
+    '라이선스': { icon: '📜', bg: 'thumb-purple', badge: 'badge-purple' },
+    '데이터': { icon: '🗄️', bg: 'thumb-purple', badge: 'badge-purple' },
+    '계정': { icon: '👤', bg: 'thumb-amber', badge: 'badge-amber' },
+    '네트워크': { icon: '🌐', bg: 'thumb-blue', badge: 'badge-blue' },
+    '보안': { icon: '🔒', bg: 'thumb-pink', badge: 'badge-pink' },
+    'IT 장비': { icon: '💻', bg: 'thumb-teal', badge: 'badge-teal' },
+    '기타': { icon: '📦', bg: 'thumb-gray', badge: 'badge-gray' }
   }
 
   function normalizeCategory(category) {
@@ -52,13 +52,12 @@ export const useCourseStore = defineStore('course', () => {
     }
   }
 
-  function getThumbnail(course) {
-    const thumbKey = course?.thumbnail?.toUpperCase?.() || ''
-    if (thumbKey && thumbnailMap[thumbKey]) {
-      return thumbnailMap[thumbKey]
-    }
+  function getCategoryIcon(course) {
+    return categoryIconMap[course?.category]?.icon || '📦'
+  }
 
-    return categoryThumbnailMap[course?.category] || null
+  function getCategoryStyle(course) {
+    return categoryIconMap[course?.category] || categoryIconMap['기타']
   }
 
   async function fetchCourses() {
@@ -66,7 +65,7 @@ export const useCourseStore = defineStore('course', () => {
     error.value = null
 
     try {
-      const res = await courseApi.getAll()
+      const res = await resourceApi.getAll()
       console.log('[CourseStore] fetchCourses response =', res.data)
 
       const rawCourses = Array.isArray(res.data?.data)
@@ -80,7 +79,7 @@ export const useCourseStore = defineStore('course', () => {
       console.log('[CourseStore] normalized courses =', courses.value)
     } catch (e) {
       console.error('[CourseStore] fetchCourses failed:', e)
-      error.value = e.message || '강의 목록을 불러오지 못했습니다.'
+      error.value = mapErrorMessage(e)
       courses.value = []
     } finally {
       loading.value = false
@@ -92,7 +91,7 @@ export const useCourseStore = defineStore('course', () => {
     error.value = null
 
     try {
-      const res = await courseApi.getById(id)
+      const res = await resourceApi.getById(id)
       console.log('[CourseStore] fetchCourse response =', res.data)
 
       const rawCourse =
@@ -105,7 +104,7 @@ export const useCourseStore = defineStore('course', () => {
       console.log('[CourseStore] normalized selectedCourse =', selectedCourse.value)
     } catch (e) {
       console.error('[CourseStore] fetchCourse failed:', e)
-      error.value = e.message || '강의 정보를 불러오지 못했습니다.'
+      error.value = mapErrorMessage(e)
       selectedCourse.value = null
     } finally {
       loading.value = false
@@ -123,11 +122,11 @@ export const useCourseStore = defineStore('course', () => {
     error,
     categories,
     selectedCategory,
-    thumbnailMap,
     categoryLabelMap,
     normalizeCategory,
     normalizeCourse,
-    getThumbnail,
+    getCategoryIcon,
+    getCategoryStyle,
     fetchCourses,
     fetchCourse,
     setCategory

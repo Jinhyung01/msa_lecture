@@ -1,55 +1,38 @@
 <template>
-  <router-link :to="`/courses/${course.id}`" class="course-card">
+  <router-link :to="`/resources/${course.id}`" class="course-card">
     <!-- 썸네일 -->
-    <div class="card-thumb" :class="thumbBg">
-      <img v-if="thumbSrc" :src="thumbSrc" :alt="course.title" class="thumb-img" />
-      <div v-else class="thumb-placeholder">{{ course.category?.charAt(0) }}</div>
+    <div class="card-thumb" :class="style.bg">
+      <span class="thumb-icon">{{ style.icon }}</span>
     </div>
 
     <!-- 내용 -->
     <div class="card-body">
-      <span class="badge" :class="badgeClass">{{ course.category }}</span>
+      <div class="card-top">
+        <span class="badge" :class="style.badge">{{ course.category }}</span>
+        <span class="badge" :class="course.status === 'INACTIVE' ? 'badge-neutral' : 'badge-success'">
+          {{ course.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE' }}
+        </span>
+      </div>
       <h3 class="card-title">{{ course.title }}</h3>
-      <div class="card-meta">
-        <span class="instructor">{{ course.instructorName }}</span>
-        <span class="price">₩{{ Number(course.price).toLocaleString() }}</span>
-      </div>
+      <p class="card-desc">{{ course.description || '설명이 등록되지 않았습니다.' }}</p>
       <div class="card-footer">
-        <span class="enrolled">수강생 {{ course.enrollmentCount?.toLocaleString() }}명</span>
+        <span class="provision-count">제공 완료 {{ (course.enrollmentCount ?? 0).toLocaleString() }}회</span>
       </div>
+      <span class="detail-link">상세보기 →</span>
     </div>
   </router-link>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { useCourseStore } from '@/store/course.js'
 
 const props = defineProps({
   course: { type: Object, required: true }
 })
 
-const categoryConfig = {
-  '백엔드':    { bg: 'thumb-teal',   badge: 'badge-teal',   thumb: 'spring_boot' },
-  '프론트엔드':{ bg: 'thumb-teal',   badge: 'badge-teal',   thumb: 'vue_js' },
-  'DevOps':   { bg: 'thumb-blue',   badge: 'badge-blue',   thumb: 'docker' },
-  '데이터':   { bg: 'thumb-purple', badge: 'badge-purple', thumb: 'python' },
-  'AI':       { bg: 'thumb-pink',   badge: 'badge-pink',   thumb: 'generative_ai' },
-}
-
-const config = computed(() => categoryConfig[props.course.category] || { bg: 'thumb-gray', badge: 'badge-gray' })
-const thumbBg = computed(() => config.value.bg)
-const badgeClass = computed(() => config.value.badge)
-
-// 썸네일 이미지 동적 import
-const thumbSrc = computed(() => {
-  const key = props.course.thumbnail || config.value.thumb
-  if (!key) return null
-  try {
-    return new URL(`../assets/images/courses/${key}.png`, import.meta.url).href
-  } catch {
-    return null
-  }
-})
+const courseStore = useCourseStore()
+const style = computed(() => courseStore.getCategoryStyle(props.course))
 </script>
 
 <style scoped>
@@ -69,28 +52,21 @@ const thumbSrc = computed(() => {
   border-color: var(--color-border-hover);
 }
 .card-thumb {
-  height: 120px;
+  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
-.thumb-teal   { background: #E1F5EE; }
-.thumb-blue   { background: #E6F1FB; }
-.thumb-amber  { background: #FAEEDA; }
-.thumb-purple { background: #EEEDFE; }
-.thumb-pink   { background: #FBEAF0; }
-.thumb-gray   { background: #F1EFE8; }
-.thumb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 16px;
-}
-.thumb-placeholder {
+/* 카테고리는 아이콘으로 구분하므로 썸네일 배경은 중립 톤으로 통일한다 */
+.thumb-teal,
+.thumb-blue,
+.thumb-amber,
+.thumb-purple,
+.thumb-pink,
+.thumb-gray { background: var(--color-bg-tertiary); }
+.thumb-icon {
   font-size: 36px;
-  font-weight: 700;
-  color: var(--color-text-muted);
 }
 .card-body {
   padding: 14px 16px;
@@ -99,31 +75,40 @@ const thumbSrc = computed(() => {
   gap: 6px;
   flex: 1;
 }
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .card-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
   line-height: 1.4;
 }
-.card-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.instructor {
+.card-desc {
   font-size: 12px;
   color: var(--color-text-secondary);
-}
-.price {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-primary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.6em;
 }
 .card-footer {
+  display: flex;
+  align-items: center;
   margin-top: 2px;
 }
-.enrolled {
+.provision-count {
   font-size: 11px;
   color: var(--color-text-muted);
+}
+.detail-link {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-primary);
 }
 </style>

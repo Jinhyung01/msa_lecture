@@ -50,6 +50,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // 개발 모드 전용: 백엔드 없이 화면을 미리 보기 위한 가상 로그인
+  const MOCK_USERS = {
+    STUDENT: { id: 1, name: '홍길동', email: 'E20260001', role: 'STUDENT', department: '플랫폼개발팀' },
+    INSTRUCTOR: { id: 2, name: '김관리', email: 'E20260099', role: 'INSTRUCTOR', department: 'IT인프라팀' }
+  }
+
+  function mockLogin(role) {
+    setToken('mock-preview-token')
+    setUser(MOCK_USERS[role] ?? MOCK_USERS.STUDENT)
+  }
+
   // OAuth2 Authorization Code Flow
   function redirectToLogin() {
     const params = new URLSearchParams({
@@ -86,6 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
     fetchUser,
     logout,
     redirectToLogin,
-    handleCallback
+    handleCallback,
+    mockLogin
   }
 })

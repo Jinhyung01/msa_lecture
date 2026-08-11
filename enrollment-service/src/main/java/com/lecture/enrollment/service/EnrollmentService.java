@@ -109,9 +109,10 @@ public class EnrollmentService {
         if (!enrollment.getUserId().equals(userId)) {
             throw EnrollmentApiException.forbidden("본인의 신청만 취소할 수 있습니다.");
         }
-        if (enrollment.getStatus() != Enrollment.Status.REQUESTED) {
-            throw EnrollmentApiException.invalidTransition(
-                    "REQUESTED 상태의 신청만 취소할 수 있습니다.");
+        if (enrollment.getStatus() != Enrollment.Status.REQUESTED
+                && enrollment.getStatus() != Enrollment.Status.ACCEPTED
+                && enrollment.getStatus() != Enrollment.Status.PROVISIONING) {
+            throw EnrollmentApiException.invalidTransition("취소할 수 없는 상태입니다.");
         }
         if (enrollment.getPaymentId() == null) {
             throw EnrollmentApiException.internalError("연결된 제공 작업이 없습니다.");
@@ -125,6 +126,55 @@ public class EnrollmentService {
         return toResponse(
                 enrollment,
                 courseServiceClient.getCourse(enrollment.getCourseId()));
+    }
+
+    @Transactional
+    public EnrollmentDto.EnrollmentResponse returnByRequester(
+            Long enrollmentId,
+            Long userId) {
+        requireRequester(userId);
+
+        Enrollment enrollment = findEnrollment(enrollmentId);
+        if (!enrollment.getUserId().equals(userId)) {
+            throw EnrollmentApiException.forbidden("본인의 신청만 반납할 수 있습니다.");
+        }
+        if (enrollment.getStatus() != Enrollment.Status.PROVIDED) {
+            throw EnrollmentApiException.invalidTransition("제공 완료 상태의 신청만 반납할 수 있습니다.");
+        }
+        if (enrollment.getPaymentId() == null) {
+            throw EnrollmentApiException.internalError("연결된 제공 작업이 없습니다.");
+        }
+
+        enrollment.returnByRequester();
+        paymentServiceClient.returnProvision(enrollment.getPaymentId());
+
+        log.info("[EnrollmentService] 신청자 반납 - enrollmentId: {}, userId: {}",
+                enrollmentId, userId);
+        return toResponse(
+                enrollment,
+                courseServiceClient.getCourse(enrollment.getCourseId()));
+    }
+
+    @Transactional
+    public void deleteByRequester(Long enrollmentId, Long userId) {
+        requireRequester(userId);
+
+        Enrollment enrollment = findEnrollment(enrollmentId);
+        if (!enrollment.getUserId().equals(userId)) {
+            throw EnrollmentApiException.forbidden("본인의 신청만 삭제할 수 있습니다.");
+        }
+        if (enrollment.getStatus() != Enrollment.Status.CANCELLED
+                && enrollment.getStatus() != Enrollment.Status.RETURNED) {
+            throw EnrollmentApiException.invalidTransition("취소 또는 수거 완료된 신청만 삭제할 수 있습니다.");
+        }
+
+        if (enrollment.getPaymentId() != null) {
+            paymentServiceClient.deletePayment(enrollment.getPaymentId());
+        }
+        enrollmentRepository.delete(enrollment);
+
+        log.info("[EnrollmentService] 신청자 신청 기록 삭제 - enrollmentId: {}, userId: {}",
+                enrollmentId, userId);
     }
 
     public List<EnrollmentDto.EnrollmentResponse> getAdminEnrollments(
