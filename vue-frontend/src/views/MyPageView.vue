@@ -6,16 +6,32 @@
         <div class="sidebar-section">
           <div class="sidebar-label">메뉴</div>
 
-          <router-link to="/courses" class="sidebar-item">
-            <span class="si-icon">📚</span> 강의 목록
+          <router-link to="/resources" class="sidebar-item">
+            <span class="si-icon">🖥️</span> 리소스 목록
           </router-link>
 
           <router-link
-            v-if="!isInstructor"
-            to="/enrollments"
+            v-if="isAdminUser"
+            to="/admin/requests"
             class="sidebar-item"
           >
-            <span class="si-icon">✅</span> 내 수강 목록
+            <span class="si-icon">🗂️</span> 요청 관리
+          </router-link>
+
+          <router-link
+            v-else
+            to="/requests/my"
+            class="sidebar-item"
+          >
+            <span class="si-icon">✅</span> 내 신청 내역
+          </router-link>
+
+          <router-link
+            v-if="!isAdminUser"
+            to="/related"
+            class="sidebar-item"
+          >
+            <span class="si-icon">🔗</span> 연관 리소스
           </router-link>
 
           <router-link to="/mypage" class="sidebar-item active">
@@ -37,127 +53,76 @@
           <div class="profile-avatar">{{ auth.user?.name?.charAt(0) || '?' }}</div>
           <div class="profile-info">
             <h2 class="profile-name">{{ auth.user?.name || '사용자' }}</h2>
-            <p class="profile-email">{{ auth.user?.email || '-' }}</p>
-            <span class="badge" :class="isInstructor ? 'badge-amber' : 'badge-blue'">
-              {{ isInstructor ? '강사' : '학생' }}
+            <p class="profile-employee-number">이메일 주소: {{ auth.user?.email || '-' }}</p>
+            <span class="badge" :class="isAdminUser ? 'badge-amber' : 'badge-blue'">
+              {{ roleLabel(auth.user?.role) }}
             </span>
           </div>
         </div>
 
-        <!-- 학생 화면 -->
-        <section v-if="!isInstructor" class="recommend-section">
-          <h3 class="section-title">추천 강의</h3>
+        <!-- 신청자 통계 -->
+        <section v-if="!isAdminUser" class="stats-section">
+          <h3 class="section-title">내 신청 현황</h3>
 
-          <p v-if="recommendMessage" class="recommend-message">
-            {{ recommendMessage }}
-          </p>
+          <div v-if="statsLoading" class="loading-row">
+            <div v-for="i in 3" :key="i" class="skeleton-card"></div>
+          </div>
 
-          <div v-if="recommendLoading" class="loading-row">
-            <div v-for="i in 3" :key="i" class="skeleton-card">
-              <div class="skeleton-thumb"></div>
-              <div class="skeleton-body">
-                <div class="skeleton-line short"></div>
-                <div class="skeleton-line"></div>
-              </div>
+          <div v-else class="summary-cards">
+            <div class="summary-card">
+              <div class="summary-label">신청 대기</div>
+              <div class="summary-value">{{ pendingCount }}</div>
+              <ul class="summary-detail-list">
+                <li v-for="item in pendingList" :key="item.id">
+                  <router-link :to="`/requests/${item.id}`">- {{ getResourceName(item) }} × {{ item.quantity ?? 1 }}</router-link>
+                </li>
+              </ul>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">진행 중 건수</div>
+              <div class="summary-value">{{ inProgressCount }}</div>
+              <ul class="summary-detail-list">
+                <li v-for="item in inProgressList" :key="item.id">
+                  <router-link :to="`/requests/${item.id}`">- {{ getResourceName(item) }} × {{ item.quantity ?? 1 }}</router-link>
+                </li>
+              </ul>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">제공 완료 건수</div>
+              <div class="summary-value">{{ providedCount }}</div>
+              <ul class="summary-detail-list">
+                <li v-for="item in providedList" :key="item.id">
+                  <router-link :to="`/requests/${item.id}`">- {{ getResourceName(item) }} × {{ item.quantity ?? 1 }}</router-link>
+                </li>
+              </ul>
             </div>
           </div>
 
-          <div v-else-if="recommendations.length" class="recommend-grid fade-in">
-            <CourseCard v-for="c in recommendations" :key="c.id" :course="c" />
-          </div>
-
-          <p v-else-if="recommendError" class="empty-text">
-            {{ recommendError }}
-          </p>
-
-          <p v-else class="empty-text">
-            아직 추천할 강의가 없습니다.
-          </p>
+          <p v-if="statsError" class="empty-text">{{ statsError }}</p>
         </section>
 
-        <!-- 강사 화면 -->
-        <section v-else class="instructor-section">
-          <div class="section-head">
-            <h3 class="section-title">내가 등록한 강좌</h3>
-            <span class="section-subtitle">등록한 강좌와 강좌별 수강생 수를 확인할 수 있습니다.</span>
-          </div>
+        <!-- 관리자 안내 -->
+        <section v-else class="admin-section">
+          <h3 class="section-title">관리자 메뉴</h3>
+          <p class="admin-desc">요청 관리 화면에서 대기 중인 리소스 요청을 접수하고 제공 작업을 처리할 수 있습니다.</p>
+          <router-link to="/admin/requests" class="btn btn-primary">요청 관리로 이동</router-link>
 
-          <div class="summary-cards">
-            <div class="summary-card">
-              <div class="summary-label">등록 강좌 수</div>
-              <div class="summary-value">{{ myCourses.length }}</div>
+          <div class="history-block">
+            <h4 class="history-title">내 처리 내역</h4>
+            <div v-if="historyLoading" class="history-loading-rows">
+              <div v-for="i in 3" :key="i" class="skeleton-card history-skeleton"></div>
             </div>
-            <div class="summary-card">
-              <div class="summary-label">총 수강생 수</div>
-              <div class="summary-value">{{ totalEnrollmentCount }}</div>
-            </div>
-          </div>
-
-          <div v-if="instructorLoading" class="loading-row instructor-loading">
-            <div v-for="i in 3" :key="i" class="skeleton-card">
-              <div class="skeleton-thumb"></div>
-              <div class="skeleton-body">
-                <div class="skeleton-line short"></div>
-                <div class="skeleton-line"></div>
-              </div>
-            </div>
-          </div>
-
-          <div v-else-if="myCourses.length" class="instructor-course-list fade-in">
-            <div
-              v-for="course in myCourses"
-              :key="course.id"
-              class="instructor-course-card"
-            >
-              <div class="course-card-top">
-                <div>
-                  <h4 class="course-title">{{ course.title }}</h4>
-                  <p class="course-desc">{{ course.description || '설명이 없습니다.' }}</p>
-                </div>
-                <span
-                  class="status-badge"
-                  :class="course.status === 'ACTIVE' ? 'status-active' : 'status-inactive'"
-                >
-                  {{ course.status || 'UNKNOWN' }}
-                </span>
-              </div>
-
-              <div class="course-meta-grid">
-                <div class="meta-box">
-                  <div class="meta-label">카테고리</div>
-                  <div class="meta-value">{{ course.category || '-' }}</div>
-                </div>
-                <div class="meta-box">
-                  <div class="meta-label">가격</div>
-                  <div class="meta-value">{{ formatPrice(course.price) }}</div>
-                </div>
-                <div class="meta-box">
-                  <div class="meta-label">수강생 수</div>
-                  <div class="meta-value">
-                    {{ course.enrollment_count ?? course.enrollmentCount ?? 0 }}명
-                  </div>
-                </div>
-                <div class="meta-box">
-                  <div class="meta-label">강좌 ID</div>
-                  <div class="meta-value">#{{ course.id }}</div>
-                </div>
-              </div>
-
-              <div class="course-card-actions">
-                <router-link :to="`/courses/${course.id}`" class="action-btn action-primary">
-                  강좌 보기
+            <ul v-else-if="history.length" class="history-list">
+              <li v-for="h in history" :key="h.id">
+                <router-link :to="`/requests/${h.id}`" class="history-link">
+                  <span class="history-action">{{ h.actionLabel }}</span>
+                  <span class="history-name">{{ h.resourceName }}</span>
+                  <span class="history-date">{{ h.date }}</span>
                 </router-link>
-              </div>
-            </div>
+              </li>
+            </ul>
+            <p v-else class="empty-text">아직 처리한 내역이 없습니다.</p>
           </div>
-
-          <p v-else-if="instructorError" class="empty-text">
-            {{ instructorError }}
-          </p>
-
-          <p v-else class="empty-text">
-            아직 등록한 강좌가 없습니다.
-          </p>
         </section>
       </main>
     </div>
@@ -168,166 +133,132 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
-import CourseCard from '@/components/CourseCard.vue'
 import { useAuthStore } from '@/store/auth.js'
-import { enrollmentApi } from '@/api/enrollment.js'
-import { courseApi } from '@/api/course.js'
+import { requestApi } from '@/api/enrollment.js'
+import { provisionApi } from '@/api/provision.js'
+import { isAdmin, roleLabel } from '@/utils/role.js'
+import { mapErrorMessage } from '@/utils/errorMessage.js'
+
+const ADMIN_ACTION_LABELS = {
+  ACCEPTED: '접수함',
+  PROVISIONING: '제공 시작함',
+  PROVIDED: '제공 완료 처리함',
+  REJECTED: '반려함',
+  CANCELLED: '취소 처리함',
+  RETURNED: '수거 완료함'
+}
 
 const router = useRouter()
 const auth = useAuthStore()
 
-const isInstructor = computed(() => auth.user?.role === 'INSTRUCTOR')
+const isAdminUser = computed(() => isAdmin(auth.user))
 
-/* 학생용 */
-const recommendations = ref([])
-const recommendLoading = ref(true)
-const recommendError = ref('')
-const recommendMessage = ref('')
+const allList = ref([])
+const statsLoading = ref(true)
+const statsError = ref('')
 
-/* 강사용 */
-const myCourses = ref([])
-const instructorLoading = ref(true)
-const instructorError = ref('')
+// 같은 리소스를 여러 번 신청한 경우 리소스당 가장 최근 건만 남기고,
+// 그 최근 건이 취소된 상태라면 목록에서 완전히 제외한다.
+const dedupedList = computed(() => {
+  const latestByResource = new Map()
+  for (const item of allList.value) {
+    const key = item.course?.id ?? item.courseId
+    const existing = latestByResource.get(key)
+    if (!existing || item.id > existing.id) {
+      latestByResource.set(key, item)
+    }
+  }
+  return Array.from(latestByResource.values()).filter(item => item.status !== 'CANCELLED')
+})
 
-const totalEnrollmentCount = computed(() =>
-  myCourses.value.reduce((sum, course) => {
-    const count = Number(course.enrollment_count ?? course.enrollmentCount ?? 0)
-    return sum + (Number.isNaN(count) ? 0 : count)
-  }, 0)
+const pendingList = computed(() =>
+  dedupedList.value.filter(item => item.status === 'REQUESTED')
 )
+const pendingCount = computed(() => pendingList.value.length)
+const inProgressList = computed(() =>
+  dedupedList.value.filter(item => ['ACCEPTED', 'PROVISIONING'].includes(item.status))
+)
+const inProgressCount = computed(() => inProgressList.value.length)
+const providedList = computed(() =>
+  dedupedList.value.filter(item => ['PROVIDED', 'RETURN_REQUESTED'].includes(item.status))
+)
+const providedCount = computed(() => providedList.value.length)
+
+const history = ref([])
+const historyLoading = ref(true)
+
+function getResourceName(item) {
+  return item.course?.title ?? item.resourceName ?? item.name ?? '-'
+}
 
 function handleLogout() {
   auth.logout()
   router.push('/')
 }
 
-function formatPrice(price) {
-  const value = Number(price ?? 0)
-  if (Number.isNaN(value)) return '-'
-  return `${value.toLocaleString()}원`
-}
-
-/**
- * course 객체에서 강사 식별자 추출
- */
-function getCourseInstructorId(course) {
-  return (
-    course.instructorId ??
-    course.instructor_id ??
-    course.instructor ??
-    course.teacherId ??
-    course.teacher_id ??
-    null
-  )
-}
-
-async function loadStudentRecommendations() {
+async function loadHistory() {
+  historyLoading.value = true
   try {
-    if (!auth.user) {
-      console.warn('[MyPage] auth.user is missing')
-      recommendError.value = '추천 강의를 준비 중입니다.'
-      return
-    }
+    const res = await requestApi.getAdminList()
+    const list = Array.isArray(res.data?.data)
+      ? res.data.data
+      : Array.isArray(res.data)
+        ? res.data
+        : []
 
-    if (!auth.user.id) {
-      console.warn('[MyPage] auth.user.id is missing:', auth.user)
-      recommendError.value = '추천 강의를 준비 중입니다.'
-      return
-    }
-
-    const res = await enrollmentApi.getRecommendations(auth.user.id)
-    console.log('[MyPage] recommendation response:', res.data)
-
-    const payload = res.data
-
-    if (Array.isArray(payload?.recommendedCourses)) {
-      recommendations.value = payload.recommendedCourses
-      recommendMessage.value = payload.message ?? ''
-    } else if (Array.isArray(payload?.data)) {
-      recommendations.value = payload.data
-      recommendMessage.value = payload.message ?? ''
-    } else if (Array.isArray(payload)) {
-      recommendations.value = payload
-      recommendMessage.value = ''
-    } else {
-      console.warn('[MyPage] unexpected recommendation response shape:', payload)
-      recommendations.value = []
-      recommendMessage.value = ''
-    }
-  } catch (error) {
-    console.error('[MyPage] failed to load recommendations:', error)
-    recommendError.value = '현재 추천 강의를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
-  } finally {
-    recommendLoading.value = false
-  }
-}
-
-async function loadInstructorCourses() {
-  try {
-    if (!auth.user) {
-      console.warn('[MyPage] instructor auth.user is missing')
-      instructorError.value = '강좌 정보를 불러오지 못했습니다.'
-      return
-    }
-
-    if (!auth.user.id) {
-      console.warn('[MyPage] instructor auth.user.id is missing:', auth.user)
-      instructorError.value = '강좌 정보를 불러오지 못했습니다.'
-      return
-    }
-
-    const res = await courseApi.getCourses()
-    console.log('[MyPage] course list response:', res.data)
-
-    let courses = []
-
-    if (Array.isArray(res.data?.data)) {
-      courses = res.data.data
-    } else if (Array.isArray(res.data)) {
-      courses = res.data
-    } else {
-      console.warn('[MyPage] unexpected course response shape:', res.data)
-    }
-
-    console.log('[MyPage] auth.user =', auth.user)
-    console.log('[MyPage] courses =', courses)
-    console.log('[MyPage] first course =', courses[0])
-
-    courses.forEach(course => {
-      console.log('[MyPage] instructor fields check:', {
-        courseId: course.id,
-        instructorId: course.instructorId,
-        instructor_id: course.instructor_id,
-        instructor: course.instructor,
-        teacherId: course.teacherId,
-        teacher_id: course.teacher_id,
-        rawCourse: course
+    const actedItems = list.filter(item => ADMIN_ACTION_LABELS[item.status] && item.paymentId)
+    const withManager = await Promise.all(
+      actedItems.map(async item => {
+        try {
+          const pRes = await provisionApi.getById(item.paymentId)
+          const payment = pRes.data?.data ?? pRes.data ?? null
+          return { item, managerId: payment?.managerId ?? null }
+        } catch {
+          return { item, managerId: null }
+        }
       })
-    })
+    )
 
-    const instructorId = Number(auth.user.id)
-
-    myCourses.value = courses.filter(course => {
-      const courseInstructorId = Number(getCourseInstructorId(course))
-      return !Number.isNaN(courseInstructorId) && courseInstructorId === instructorId
-    })
-
-    console.log('[MyPage] filtered myCourses =', myCourses.value)
-  } catch (error) {
-    console.error('[MyPage] failed to load instructor courses:', error)
-    instructorError.value = '현재 강좌 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
+    history.value = withManager
+      .filter(({ managerId }) => managerId === auth.user?.id)
+      .map(({ item }) => ({
+        id: item.id,
+        resourceName: getResourceName(item),
+        actionLabel: ADMIN_ACTION_LABELS[item.status],
+        date: (item.updatedAt || item.createdAt || '').slice(0, 10)
+      }))
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .slice(0, 10)
+  } catch (e) {
+    console.error('[MyPage] failed to load admin history:', e)
   } finally {
-    instructorLoading.value = false
+    historyLoading.value = false
   }
 }
 
-onMounted(async () => {
-  if (isInstructor.value) {
-    recommendLoading.value = false
-    await loadInstructorCourses()
+async function loadStats() {
+  statsLoading.value = true
+  statsError.value = ''
+  try {
+    const res = await requestApi.getMine()
+    allList.value = Array.isArray(res.data?.data)
+      ? res.data.data
+      : Array.isArray(res.data)
+        ? res.data
+        : []
+  } catch (e) {
+    console.error('[MyPage] failed to load request stats:', e)
+    statsError.value = mapErrorMessage(e)
+  } finally {
+    statsLoading.value = false
+  }
+}
+
+onMounted(() => {
+  if (isAdminUser.value) {
+    loadHistory()
   } else {
-    instructorLoading.value = false
-    await loadStudentRecommendations()
+    loadStats()
   }
 })
 </script>
@@ -445,7 +376,7 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.profile-email {
+.profile-employee-number {
   font-size: 14px;
   color: var(--color-text-secondary);
 }
@@ -461,92 +392,25 @@ onMounted(async () => {
 }
 
 .badge-blue {
-  background: #e8f1ff;
-  color: #2563eb;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
 }
 
 .badge-amber {
-  background: #f7edd8;
-  color: #9a6700;
-}
-
-.section-head {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
 }
 
 .section-title {
   font-size: 18px;
   font-weight: 700;
-}
-
-.section-subtitle {
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.recommend-message {
   margin-bottom: 14px;
-  font-size: 13px;
-  color: var(--color-text-secondary);
-}
-
-.recommend-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.loading-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.instructor-loading {
-  margin-bottom: 20px;
-}
-
-.skeleton-card {
-  background: var(--color-bg-primary);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-}
-
-.skeleton-thumb {
-  height: 110px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-}
-
-.skeleton-body {
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.skeleton-line {
-  height: 12px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite;
-}
-
-.skeleton-line.short {
-  width: 40%;
 }
 
 .summary-cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(160px, 220px));
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
   gap: 16px;
-  margin-bottom: 20px;
 }
 
 .summary-card {
@@ -569,114 +433,124 @@ onMounted(async () => {
   color: var(--color-text-primary);
 }
 
-.instructor-course-list {
-  display: grid;
-  gap: 18px;
+.summary-detail-list {
+  list-style: none;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 140px;
+  overflow-y: auto;
 }
 
-.instructor-course-card {
+.summary-detail-list a {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.summary-detail-list a:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.loading-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.skeleton-card {
+  height: 90px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.admin-section {
   background: var(--color-bg-primary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 22px;
+  padding: 24px;
   box-shadow: var(--shadow-sm);
 }
 
-.course-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-.course-title {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.course-desc {
+.admin-desc {
   font-size: 14px;
   color: var(--color-text-secondary);
-  line-height: 1.5;
-  white-space: pre-line;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.status-active {
-  background: #eaf8ef;
-  color: #0f8a3b;
-}
-
-.status-inactive {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-.course-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.meta-box {
-  background: var(--color-bg-secondary);
-  border-radius: var(--radius-md);
-  padding: 14px;
-}
-
-.meta-label {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  margin-bottom: 6px;
-}
-
-.meta-value {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.course-card-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  border-radius: var(--radius-md);
-  padding: 10px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  transition: var(--transition);
-}
-
-.action-primary {
-  background: var(--color-primary);
-  color: white;
-}
-
-.action-primary:hover {
-  opacity: 0.92;
+  margin-bottom: 16px;
 }
 
 .empty-text {
   color: var(--color-text-muted);
   font-size: 14px;
+  margin-top: 12px;
+}
+
+.history-block {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.history-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.history-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.history-link:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.history-action {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.history-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.history-date {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.history-loading-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history-skeleton {
+  height: 40px;
+  border-radius: var(--radius-md);
 }
 
 @keyframes shimmer {
@@ -690,28 +564,8 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 
-  .recommend-grid,
-  .loading-row,
-  .course-meta-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .summary-cards {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .profile-card {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .course-card-top {
-    flex-direction: column;
-  }
-
-  .summary-cards {
+  .summary-cards,
+  .loading-row {
     grid-template-columns: 1fr;
   }
 }

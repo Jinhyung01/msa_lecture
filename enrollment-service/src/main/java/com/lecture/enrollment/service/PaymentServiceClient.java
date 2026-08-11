@@ -73,6 +73,38 @@ public class PaymentServiceClient {
         }
     }
 
+    public void returnProvision(Long paymentId) {
+        try {
+            webClientBuilder.build()
+                    .patch()
+                    .uri(paymentServiceUrl + "/api/payments/internal/{id}/return", paymentId)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+            log.info("[PaymentServiceClient] 신청자 반납 전달 - paymentId: {}", paymentId);
+        } catch (Exception e) {
+            log.error("[PaymentServiceClient] 신청자 반납 전달 실패 - paymentId: {}, error: {}",
+                    paymentId, e.getMessage(), e);
+            throw EnrollmentApiException.internalError("리소스 반납을 반영하지 못했습니다.");
+        }
+    }
+
+    public void deletePayment(Long paymentId) {
+        try {
+            webClientBuilder.build()
+                    .delete()
+                    .uri(paymentServiceUrl + "/api/payments/internal/{id}", paymentId)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+            log.info("[PaymentServiceClient] 제공 작업 삭제 - paymentId: {}", paymentId);
+        } catch (Exception e) {
+            log.error("[PaymentServiceClient] 제공 작업 삭제 실패 - paymentId: {}, error: {}",
+                    paymentId, e.getMessage(), e);
+            throw EnrollmentApiException.internalError("제공 작업 기록을 삭제하지 못했습니다.");
+        }
+    }
+
     @Getter
     @NoArgsConstructor
     public static class PaymentRequest {

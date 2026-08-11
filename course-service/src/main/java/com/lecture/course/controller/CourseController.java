@@ -67,8 +67,10 @@ public class CourseController {
         return ResponseEntity.ok(courseService.updateCourse(id, request, instructorId));
     }
 
-    /** PATCH /api/courses/{id}/status - 신청 가능 상태 변경 (관리자만) */
-    @PatchMapping("/{id}/status")
+    /** PATCH /api/courses/{id}/status - 신청 가능 상태 변경 (관리자만)
+     * PATCH/POST 겸용: api-gateway CORS 허용 메서드 목록에 PATCH가 빠져 있어(소스 없는 사전
+     * 빌드 이미지) 브라우저에서 PATCH가 403으로 막힌다. 게이트웨이가 고쳐지기 전까지 프론트는 POST로 호출한다. */
+    @RequestMapping(value = "/{id}/status", method = {RequestMethod.PATCH, RequestMethod.POST})
     public ResponseEntity<CourseDto.CourseResponse> changeStatus(
             @PathVariable Long id,
             @Valid @RequestBody CourseDto.StatusUpdateRequest request,

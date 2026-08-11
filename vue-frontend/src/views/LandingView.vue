@@ -6,46 +6,39 @@
     <section class="hero">
       <div class="hero-inner">
         <div class="hero-content fade-in-up">
-          <span class="hero-badge">MSA 기반 교육 플랫폼</span>
-          <h1 class="hero-title">배움을 더 스마트하게,<br>커리어를 더 빠르게</h1>
-          <p class="hero-desc">개발, 디자인, 비즈니스 분야의 전문가 강의를 수강하고 실력을 키워보세요.</p>
-          <div class="hero-actions">
-            <router-link to="/login" class="btn btn-primary btn-lg">무료로 시작하기</router-link>
-            <router-link to="/courses" class="btn btn-outline btn-lg">강의 둘러보기</router-link>
-          </div>
-          <div class="hero-stats">
-            <div class="stat"><span class="stat-num">1,200+</span><span class="stat-label">강의</span></div>
-            <div class="stat"><span class="stat-num">340+</span><span class="stat-label">강사</span></div>
-            <div class="stat"><span class="stat-num">28,000+</span><span class="stat-label">수강생</span></div>
+          <span class="hero-badge">사내 IT 리소스 신청·제공 플랫폼</span>
+          <h1 class="hero-title">필요한 IT 리소스를<br>한곳에서 신청하세요</h1>
+          <p class="hero-desc">서버, 클라우드, 라이선스, 데이터 및 IT 장비를 신청하고 제공 상태를 확인할 수 있습니다.</p>
+          <div class="process-steps">
+            <template v-for="(step, idx) in processSteps" :key="step">
+              <span class="process-chip">{{ step }}</span>
+              <span v-if="idx < processSteps.length - 1" class="process-arrow">→</span>
+            </template>
           </div>
         </div>
         <div class="hero-visual fade-in">
-          <img src="@/assets/images/logo/main_logo.png" alt="LearnNexus" class="hero-logo" />
+          <img src="@/assets/images/logo/hubby_logo.svg" alt="Hubby" class="hero-mark" />
         </div>
       </div>
     </section>
 
-    <!-- 인기 강의 -->
-    <section class="popular-section">
+    <!-- 리소스 카테고리 -->
+    <section class="category-section">
       <div class="section-inner">
         <div class="section-header">
-          <h2 class="section-title">인기 강의</h2>
-          <router-link to="/login" class="section-link">전체 보기 →</router-link>
+          <h2 class="section-title">신청 가능한 리소스 카테고리</h2>
+          <router-link to="/resources" class="section-link">전체 보기 →</router-link>
         </div>
-        <div class="course-grid">
-          <div v-for="course in featuredCourses" :key="course.id" class="course-card-landing">
-            <div class="card-thumb" :class="course.thumbBg">
-              <img :src="course.thumbSrc" :alt="course.title" class="thumb-img" />
-            </div>
-            <div class="card-body">
-              <span class="badge" :class="course.badgeClass">{{ course.category }}</span>
-              <h3 class="card-title">{{ course.title }}</h3>
-              <div class="card-meta">
-                <span class="instructor">{{ course.instructor }}</span>
-                <span class="price">{{ course.price }}</span>
-              </div>
-            </div>
-          </div>
+        <div class="category-grid">
+          <router-link
+            v-for="cat in categoryList"
+            :key="cat"
+            to="/resources"
+            class="category-chip"
+          >
+            <span class="category-icon">{{ courseStore.getCategoryStyle({ category: cat }).icon }}</span>
+            <span class="category-label">{{ cat }}</span>
+          </router-link>
         </div>
       </div>
     </section>
@@ -53,7 +46,7 @@
     <!-- 특징 섹션 -->
     <section class="features-section">
       <div class="section-inner">
-        <h2 class="section-title center">왜 LearnNexus인가요?</h2>
+        <h2 class="section-title center">Hubby를 이용하면</h2>
         <div class="features-grid">
           <div v-for="f in features" :key="f.title" class="feature-card">
             <div class="feature-icon">{{ f.icon }}</div>
@@ -66,21 +59,17 @@
 
     <!-- CTA -->
     <section class="cta-section">
-      <div class="cta-inner">
-        <h2>지금 바로 시작하세요</h2>
-        <p>수천 명의 개발자들이 LearnNexus와 함께 성장하고 있습니다.</p>
-        <router-link to="/login" class="btn btn-primary btn-lg">무료로 시작하기</router-link>
-      </div>
+      <img src="@/assets/images/logo/hubby_banner_scene.svg" alt="Hubby" class="cta-scene" />
     </section>
 
     <!-- 푸터 -->
     <footer class="footer">
       <div class="footer-inner">
         <div class="footer-logo">
-          <img src="@/assets/images/logo/main_logo.png" alt="LearnNexus" />
-          <span>LearnNexus</span>
+          <img src="@/assets/images/logo/hubby_logo.svg" alt="Hubby" />
+          <span>Hubby</span>
         </div>
-        <p class="footer-copy">© 2026 LearnNexus. All rights reserved.</p>
+        <p class="footer-copy">© 2026 Hubby. Internal IT Resource Platform.</p>
       </div>
     </footer>
   </div>
@@ -88,28 +77,18 @@
 
 <script setup>
 import AppHeader from '@/components/AppHeader.vue'
+import { useCourseStore } from '@/store/course.js'
 
-import springImg   from '@/assets/images/courses/spring_boot.png'
-import vueImg      from '@/assets/images/courses/vue_js.png'
-import k8sImg      from '@/assets/images/courses/kubernetes.png'
-import dockerImg   from '@/assets/images/courses/docker.png'
-import pythonImg   from '@/assets/images/courses/python.png'
-import genaiImg    from '@/assets/images/courses/generative_ai.png'
+const courseStore = useCourseStore()
+const categoryList = courseStore.categories.filter(c => c !== '전체')
 
-const featuredCourses = [
-  { id:1, title:'Spring Boot MSA 완성', category:'백엔드',    instructor:'김강사', price:'₩89,000', thumbSrc: springImg, thumbBg:'thumb-teal',   badgeClass:'badge-teal'   },
-  { id:2, title:'Vue 3 실전 프로젝트',  category:'프론트엔드', instructor:'이강사', price:'₩69,000', thumbSrc: vueImg,    thumbBg:'thumb-teal',   badgeClass:'badge-teal'   },
-  { id:3, title:'Kubernetes 운영 가이드',category:'DevOps',   instructor:'박강사', price:'₩99,000', thumbSrc: k8sImg,    thumbBg:'thumb-blue',   badgeClass:'badge-blue'   },
-  { id:4, title:'Docker 컨테이너 실전', category:'DevOps',    instructor:'정강사', price:'₩79,000', thumbSrc: dockerImg, thumbBg:'thumb-blue',   badgeClass:'badge-blue'   },
-  { id:5, title:'Python 데이터 분석',   category:'데이터',    instructor:'최강사', price:'₩59,000', thumbSrc: pythonImg, thumbBg:'thumb-purple', badgeClass:'badge-purple' },
-  { id:6, title:'Generative AI 실전',   category:'AI',        instructor:'한강사', price:'₩75,000', thumbSrc: genaiImg,  thumbBg:'thumb-pink',   badgeClass:'badge-pink'   },
-]
+const processSteps = ['신청', '접수', '제공 작업', '제공 완료']
 
 const features = [
-  { icon:'🚀', title:'실무 중심 커리큘럼', desc:'현업 전문가가 직접 설계한 실무 중심 강의로 빠르게 성장하세요.' },
-  { icon:'🎯', title:'맞춤 강의 추천', desc:'AI 기반 추천 시스템이 수강 이력을 분석해 딱 맞는 강의를 추천합니다.' },
-  { icon:'💳', title:'간편한 수강 신청', desc:'원클릭 결제와 즉시 수강으로 학습을 바로 시작하세요.' },
-  { icon:'📱', title:'언제 어디서나', desc:'PC, 태블릿, 모바일 어디서든 끊김 없이 학습하세요.' },
+  { icon: '📦', title: '다양한 리소스 카테고리', desc: '서버, 클라우드, 라이선스, 데이터, 계정, 보안, IT 장비까지 한곳에서 신청합니다.' },
+  { icon: '🔄', title: '명확한 처리 단계', desc: '접수 → 제공 작업 → 제공 완료까지 진행 상태를 실시간으로 확인할 수 있습니다.' },
+  { icon: '📋', title: '신청 내역 관리', desc: '내가 신청한 리소스의 진행 상황과 취소 사유를 한눈에 확인합니다.' },
+  { icon: '🔗', title: '연관 리소스 추천', desc: '제공받은 리소스를 기반으로 함께 필요한 리소스를 추천받을 수 있습니다.' },
 ]
 </script>
 
@@ -118,7 +97,7 @@ const features = [
 
 /* 히어로 */
 .hero {
-  background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 50%, #f0f9ff 100%);
+  background: linear-gradient(135deg, var(--color-hero-from) 0%, var(--color-hero-via) 50%, var(--color-hero-to) 100%);
   border-bottom: 1px solid var(--color-border);
   padding: 80px 0 64px;
 }
@@ -156,34 +135,38 @@ const features = [
   max-width: 460px;
   margin-bottom: 28px;
 }
-.hero-actions {
+.process-steps {
   display: flex;
-  gap: 12px;
-  margin-bottom: 40px;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-.btn-lg { padding: 12px 28px; font-size: 15px; }
-.hero-stats {
-  display: flex;
-  gap: 36px;
+.process-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
 }
-.stat { display: flex; flex-direction: column; gap: 2px; }
-.stat-num { font-size: 22px; font-weight: 700; color: var(--color-primary); }
-.stat-label { font-size: 12px; color: var(--color-text-secondary); }
+.process-arrow {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
 .hero-visual {
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.hero-logo {
-  width: 200px;
-  height: 200px;
+.hero-mark {
+  width: 300px;
+  height: 300px;
   object-fit: contain;
-  border-radius: 24px;
-  box-shadow: var(--shadow-lg);
 }
 
-/* 강의 섹션 */
-.popular-section { padding: 64px 0; }
+/* 공통 섹션 */
 .section-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .section-header {
   display: flex;
@@ -196,39 +179,40 @@ const features = [
 .section-link { font-size: 14px; color: var(--color-primary); font-weight: 500; }
 .section-link:hover { text-decoration: underline; }
 
-.course-grid {
+/* 카테고리 섹션 */
+.category-section { padding: 64px 0; }
+.category-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 12px;
 }
-.course-card-landing {
+.category-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 12px;
   background: var(--color-bg-primary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
   transition: var(--transition);
 }
-.course-card-landing:hover {
+.category-chip:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-md);
+  border-color: var(--color-border-hover);
 }
-.card-thumb {
-  height: 110px;
+.category-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  font-size: 18px;
 }
-.thumb-teal   { background: #E1F5EE; }
-.thumb-blue   { background: #E6F1FB; }
-.thumb-purple { background: #EEEDFE; }
-.thumb-pink   { background: #FBEAF0; }
-.thumb-img { width: 100%; height: 100%; object-fit: contain; padding: 14px; }
-.card-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
-.card-title { font-size: 14px; font-weight: 600; color: var(--color-text-primary); line-height: 1.4; }
-.card-meta { display: flex; justify-content: space-between; align-items: center; }
-.instructor { font-size: 12px; color: var(--color-text-secondary); }
-.price { font-size: 14px; font-weight: 600; color: var(--color-primary); }
+.category-label { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); }
 
 /* 특징 */
 .features-section { padding: 64px 0; background: var(--color-bg-primary); }
@@ -252,20 +236,15 @@ const features = [
 
 /* CTA */
 .cta-section {
-  padding: 80px 0;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  text-align: center;
+  padding: 24px 0;
+  background: linear-gradient(135deg, var(--color-hero-from) 0%, var(--color-hero-via) 100%);
+  overflow: hidden;
 }
-.cta-inner { max-width: 600px; margin: 0 auto; padding: 0 24px; }
-.cta-inner h2 { font-size: 32px; font-weight: 700; color: #fff; margin-bottom: 12px; }
-.cta-inner p { font-size: 16px; color: rgba(255,255,255,0.8); margin-bottom: 32px; }
-.cta-inner .btn-primary {
-  background: #fff;
-  color: var(--color-primary);
-  border-color: #fff;
-  font-weight: 600;
+.cta-scene {
+  display: block;
+  width: 100%;
+  height: auto;
 }
-.cta-inner .btn-primary:hover { background: #f0f7ff; }
 
 /* 푸터 */
 .footer {
@@ -290,4 +269,16 @@ const features = [
 }
 .footer-logo img { width: 28px; height: 28px; border-radius: 6px; }
 .footer-copy { font-size: 13px; color: rgba(255,255,255,0.5); }
+
+@media (max-width: 992px) {
+  .category-grid { grid-template-columns: repeat(5, 1fr); }
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .hero-inner { grid-template-columns: 1fr; }
+  .hero-visual { display: none; }
+  .category-grid { grid-template-columns: repeat(3, 1fr); }
+  .features-grid { grid-template-columns: 1fr; }
+}
 </style>

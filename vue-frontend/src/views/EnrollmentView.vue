@@ -6,16 +6,16 @@
         <div class="sidebar-section">
           <div class="sidebar-label">메뉴</div>
 
-          <router-link to="/courses" class="sidebar-item">
-            <span class="si-icon">📚</span> 강의 목록
+          <router-link to="/resources" class="sidebar-item">
+            <span class="si-icon">🖥️</span> 리소스 목록
           </router-link>
 
-          <router-link
-            v-if="!isInstructor"
-            to="/enrollments"
-            class="sidebar-item active"
-          >
-            <span class="si-icon">✅</span> 내 수강 목록
+          <router-link to="/requests/my" class="sidebar-item active">
+            <span class="si-icon">✅</span> 내 신청 내역
+          </router-link>
+
+          <router-link to="/related" class="sidebar-item">
+            <span class="si-icon">🔗</span> 연관 리소스
           </router-link>
 
           <router-link to="/mypage" class="sidebar-item">
@@ -25,9 +25,6 @@
 
         <div class="sidebar-section">
           <div class="sidebar-label">계정</div>
-          <router-link to="/mypage" class="sidebar-item">
-            <span class="si-icon">👤</span> 마이페이지
-          </router-link>
           <button class="sidebar-item sidebar-btn" @click="handleLogout">
             <span class="si-icon">🚪</span> 로그아웃
           </button>
@@ -35,93 +32,130 @@
       </aside>
 
       <main class="main-content">
-        <h1 class="page-title">내 수강 목록</h1>
+        <h1 class="page-title">내 신청 내역</h1>
 
         <div v-if="loading" class="loading-center">
           <div class="spinner"></div>
         </div>
 
-        <div v-else-if="enrollments.length" class="enrollment-list fade-in">
-          <div v-for="item in enrollments" :key="item.id" class="enrollment-card">
-            <div class="enroll-thumb" :class="getThumbBg(item.course?.category)">
-              <img :src="getThumbSrc(item.course)" :alt="item.course?.title" />
+        <div v-else-if="error" class="empty-state">
+          <p>{{ error }}</p>
+          <button class="btn btn-ghost" style="margin-top:16px;" @click="loadRequests">다시 시도</button>
+        </div>
+
+        <div v-else-if="requests.length" class="enrollment-list fade-in">
+          <div v-for="item in requests" :key="item.id" class="enrollment-card">
+            <div class="enroll-thumb" :class="getStyle(item).bg">
+              <span class="thumb-icon">{{ getStyle(item).icon }}</span>
             </div>
 
             <div class="enroll-info">
-              <span class="badge" :class="getBadge(item.course?.category)">
-                {{ item.course?.category }}
+              <span class="badge" :class="getStyle(item).badge">
+                {{ getResourceCategory(item) }}
               </span>
-              <h3 class="enroll-title">{{ item.course?.title }}</h3>
-              <p class="enroll-instructor">강사: {{ item.course?.instructorName }}</p>
+              <h3 class="enroll-title">{{ getResourceName(item) }}</h3>
+              <p class="enroll-reason">신청 사유: {{ item.reason || '-' }}</p>
+              <p class="enroll-sub">
+                수량 {{ item.quantity ?? '-' }}개 · 희망 제공일 {{ item.desiredDate || '-' }} · 신청일 {{ formatDate(item.createdAt) }}
+              </p>
+              <p v-if="item.rejectReason" class="enroll-reject">반려 사유: {{ item.rejectReason }}</p>
+              <p v-if="item.cancelReason" class="enroll-reject">취소 사유: {{ item.cancelReason }}</p>
             </div>
 
             <div class="enroll-status">
-              <span
-                :class="[
-                  'status-badge',
-                  item.status === 'ACTIVE' ? 'status-active' : 'status-pending'
-                ]"
-              >
-                {{ item.status === 'ACTIVE' ? '수강 중' : '대기 중' }}
-              </span>
-              <router-link :to="`/courses/${item.courseId}`" class="btn btn-ghost btn-sm">
-                강의 보기
-              </router-link>
+              <RequestStatusBadge :status="item.status" />
+              <div class="enroll-status-actions">
+                <router-link :to="`/requests/${item.id}`" class="btn btn-ghost btn-sm">
+                  상세보기
+                </router-link>
+                <button
+                  v-if="item.status === 'PROVIDED'"
+                  class="btn btn-ghost btn-sm"
+                  :disabled="returningId === item.id"
+                  @click="handleReturn(item)"
+                >
+                  반납
+                </button>
+                <button
+                  v-if="['REQUESTED', 'ACCEPTED', 'PROVISIONING'].includes(item.status)"
+                  class="btn btn-ghost btn-sm btn-danger"
+                  @click="openCancelModal(item)"
+                >
+                  취소
+                </button>
+                <button
+                  v-if="['CANCELLED', 'RETURNED'].includes(item.status)"
+                  class="btn btn-ghost btn-sm btn-danger"
+                  :disabled="deletingId === item.id"
+                  @click="handleDelete(item)"
+                >
+                  삭제
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         <div v-else class="empty-state">
           <p class="empty-icon">📭</p>
-          <p>수강 중인 강의가 없습니다.</p>
-          <router-link to="/courses" class="btn btn-primary" style="margin-top:16px;">
-            강의 둘러보기
+          <p>신청한 리소스가 없습니다.</p>
+          <router-link to="/resources" class="btn btn-primary" style="margin-top:16px;">
+            리소스 둘러보기
           </router-link>
         </div>
       </main>
     </div>
+
+    <ReasonModal
+      v-if="cancelTarget"
+      title="신청 취소"
+      description="취소 사유를 입력해 주세요."
+      :submitting="cancelling"
+      @close="cancelTarget = null"
+      @confirm="handleCancelConfirm"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
-import { enrollmentApi } from '@/api/enrollment.js'
+import RequestStatusBadge from '@/components/RequestStatusBadge.vue'
+import ReasonModal from '@/components/ReasonModal.vue'
+import { requestApi } from '@/api/enrollment.js'
 import { useAuthStore } from '@/store/auth.js'
+import { useCourseStore } from '@/store/course.js'
+import { mapErrorMessage } from '@/utils/errorMessage.js'
 
 const router = useRouter()
 const auth = useAuthStore()
+const courseStore = useCourseStore()
 
-const enrollments = ref([])
+const requests = ref([])
 const loading = ref(true)
+const error = ref('')
 
-const isInstructor = computed(() => auth.user?.role === 'INSTRUCTOR')
+const cancelTarget = ref(null)
+const cancelling = ref(false)
+const returningId = ref(null)
+const deletingId = ref(null)
 
-const categoryConfig = {
-  '백엔드': { bg: 'thumb-teal', badge: 'badge-teal', thumb: 'spring_boot' },
-  '프론트엔드': { bg: 'thumb-teal', badge: 'badge-teal', thumb: 'vue_js' },
-  'DevOps': { bg: 'thumb-blue', badge: 'badge-blue', thumb: 'kubernetes' },
-  '데이터': { bg: 'thumb-purple', badge: 'badge-purple', thumb: 'python' },
-  'AI': { bg: 'thumb-pink', badge: 'badge-pink', thumb: 'generative_ai' },
+function getResourceName(item) {
+  return item.course?.title ?? item.resourceName ?? item.name ?? '-'
 }
 
-function getThumbBg(cat) {
-  return categoryConfig[cat]?.bg || 'thumb-gray'
+function getResourceCategory(item) {
+  return courseStore.normalizeCategory(item.course?.category ?? item.category)
 }
 
-function getBadge(cat) {
-  return categoryConfig[cat]?.badge || 'badge-gray'
+function getStyle(item) {
+  return courseStore.getCategoryStyle({ category: getResourceCategory(item) })
 }
 
-function getThumbSrc(course) {
-  const key = course?.thumbnail || categoryConfig[course?.category]?.thumb
-  if (!key) return ''
-  try {
-    return new URL(`../assets/images/courses/${key}.png`, import.meta.url).href
-  } catch {
-    return ''
-  }
+function formatDate(value) {
+  if (!value) return '-'
+  return String(value).slice(0, 10)
 }
 
 function handleLogout() {
@@ -129,32 +163,76 @@ function handleLogout() {
   router.push('/')
 }
 
-onMounted(async () => {
-  // 강사는 이 페이지 접근 불가 → 마이페이지로 이동
-  if (isInstructor.value) {
-    console.warn('[EnrollmentView] instructor tried to access /enrollments, redirect to /mypage')
-    router.replace('/mypage')
-    return
-  }
+function openCancelModal(item) {
+  cancelTarget.value = item
+}
 
+async function handleCancelConfirm(reason) {
+  if (!cancelTarget.value) return
+  cancelling.value = true
   try {
-    const res = await enrollmentApi.getMyEnrollments()
-    console.log('[EnrollmentView] my enrollments response:', res.data)
+    await requestApi.cancel(cancelTarget.value.id, reason)
+    cancelTarget.value = null
+    await loadRequests()
+  } catch (e) {
+    console.error('[EnrollmentView] cancel failed:', e)
+    error.value = mapErrorMessage(e)
+  } finally {
+    cancelling.value = false
+  }
+}
+
+async function handleReturn(item) {
+  returningId.value = item.id
+  try {
+    await requestApi.return(item.id)
+    await loadRequests()
+  } catch (e) {
+    console.error('[EnrollmentView] return failed:', e)
+    error.value = mapErrorMessage(e)
+  } finally {
+    returningId.value = null
+  }
+}
+
+async function handleDelete(item) {
+  if (!window.confirm('이 신청 기록을 삭제하시겠습니까? 삭제하면 되돌릴 수 없습니다.')) return
+  deletingId.value = item.id
+  try {
+    await requestApi.remove(item.id)
+    await loadRequests()
+  } catch (e) {
+    console.error('[EnrollmentView] delete failed:', e)
+    error.value = mapErrorMessage(e)
+  } finally {
+    deletingId.value = null
+  }
+}
+
+async function loadRequests() {
+  loading.value = true
+  error.value = ''
+  try {
+    const res = await requestApi.getMine()
+    console.log('[EnrollmentView] my requests response:', res.data)
 
     if (Array.isArray(res.data?.data)) {
-      enrollments.value = res.data.data
+      requests.value = res.data.data
     } else if (Array.isArray(res.data)) {
-      enrollments.value = res.data
+      requests.value = res.data
     } else {
-      enrollments.value = []
+      requests.value = []
     }
-  } catch (error) {
-    console.error('[EnrollmentView] failed to load enrollments:', error)
-    enrollments.value = []
+  } catch (e) {
+    console.error('[EnrollmentView] failed to load requests:', e)
+    error.value = mapErrorMessage(e)
+    requests.value = []
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadRequests)
 </script>
 
 <style scoped>
@@ -245,7 +323,7 @@ onMounted(async () => {
 
 .enrollment-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
   background: var(--color-bg-primary);
   border: 1px solid var(--color-border);
@@ -259,42 +337,25 @@ onMounted(async () => {
 }
 
 .enroll-thumb {
-  width: 72px;
-  height: 72px;
+  width: 60px;
+  height: 60px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  overflow: hidden;
 }
 
-.enroll-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 8px;
+.thumb-icon {
+  font-size: 26px;
 }
 
-.thumb-teal {
-  background: #E1F5EE;
-}
-
-.thumb-blue {
-  background: #E6F1FB;
-}
-
-.thumb-purple {
-  background: #EEEDFE;
-}
-
-.thumb-pink {
-  background: #FBEAF0;
-}
-
-.thumb-gray {
-  background: #F1EFE8;
-}
+.thumb-teal,
+.thumb-blue,
+.thumb-amber,
+.thumb-purple,
+.thumb-pink,
+.thumb-gray { background: var(--color-bg-tertiary); }
 
 .enroll-info {
   flex: 1;
@@ -308,9 +369,19 @@ onMounted(async () => {
   font-weight: 600;
 }
 
-.enroll-instructor {
+.enroll-reason {
   font-size: 13px;
   color: var(--color-text-secondary);
+}
+
+.enroll-sub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.enroll-reject {
+  font-size: 12px;
+  color: var(--color-danger);
 }
 
 .enroll-status {
@@ -320,26 +391,19 @@ onMounted(async () => {
   gap: 8px;
 }
 
-.status-badge {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-active {
-  background: #E1F5EE;
-  color: #0F6E56;
-}
-
-.status-pending {
-  background: #FAEEDA;
-  color: #854F0B;
+.enroll-status-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .btn-sm {
   padding: 7px 14px;
   font-size: 13px;
+}
+
+.btn-danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger-light);
 }
 
 .empty-state {
@@ -371,6 +435,12 @@ onMounted(async () => {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 992px) {
+  .page-layout {
+    grid-template-columns: 1fr;
   }
 }
 </style>

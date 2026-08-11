@@ -8,34 +8,44 @@
           <div class="sidebar-label">메뉴</div>
 
           <router-link
-            to="/courses"
+            to="/resources"
             class="sidebar-item"
-            :class="{ active: $route.path === '/courses' }"
+            :class="{ active: $route.path === '/resources' }"
           >
-            <span class="si-icon">📚</span> 강의 목록
+            <span class="si-icon">🖥️</span> 리소스 목록
           </router-link>
 
           <router-link
-            v-if="!isInstructor"
-            to="/enrollments"
+            v-if="isAdminUser"
+            to="/admin/requests"
             class="sidebar-item"
           >
-            <span class="si-icon">✅</span> 내 수강 목록
+            <span class="si-icon">🗂️</span> 요청 관리
           </router-link>
 
           <router-link
-            to="/mypage"
+            v-else
+            to="/requests/my"
             class="sidebar-item"
           >
+            <span class="si-icon">✅</span> 내 신청 내역
+          </router-link>
+
+          <router-link
+            v-if="!isAdminUser"
+            to="/related"
+            class="sidebar-item"
+          >
+            <span class="si-icon">🔗</span> 연관 리소스
+          </router-link>
+
+          <router-link to="/mypage" class="sidebar-item">
             <span class="si-icon">⭐</span> 마이페이지
           </router-link>
         </div>
 
         <div class="sidebar-section">
           <div class="sidebar-label">계정</div>
-          <router-link to="/mypage" class="sidebar-item">
-            <span class="si-icon">👤</span> 마이페이지
-          </router-link>
           <button class="sidebar-item sidebar-btn" @click="handleLogout">
             <span class="si-icon">🚪</span> 로그아웃
           </button>
@@ -46,18 +56,18 @@
       <main class="main-content">
         <div class="content-header">
           <div>
-            <h1 class="page-title">강의 목록</h1>
-            <p class="page-subtitle" v-if="isInstructor">
-              강사 계정으로 등록된 강의를 확인하고 새 강의를 추가할 수 있습니다.
+            <h1 class="page-title">리소스 목록</h1>
+            <p class="page-subtitle" v-if="isAdminUser">
+              관리자 계정으로 등록된 리소스를 확인하고 새 리소스를 추가할 수 있습니다.
             </p>
           </div>
 
           <router-link
-            v-if="isInstructor"
-            to="/courses/new"
+            v-if="isAdminUser"
+            to="/resources/new"
             class="btn btn-primary create-course-btn"
           >
-            강의 등록
+            리소스 등록
           </router-link>
         </div>
 
@@ -85,7 +95,13 @@
           </div>
         </div>
 
-        <!-- 강의 그리드 -->
+        <!-- 오류 -->
+        <div v-else-if="error" class="empty-state">
+          <p>{{ error }}</p>
+          <button class="btn btn-ghost empty-action-btn" @click="courseStore.fetchCourses()">다시 시도</button>
+        </div>
+
+        <!-- 리소스 그리드 -->
         <div v-else-if="filteredCourses.length" class="course-grid fade-in">
           <CourseCard
             v-for="course in filteredCourses"
@@ -96,14 +112,14 @@
 
         <!-- 빈 상태 -->
         <div v-else class="empty-state">
-          <p>해당 카테고리의 강의가 없습니다.</p>
+          <p>해당 카테고리의 리소스가 없습니다.</p>
 
           <router-link
-            v-if="isInstructor"
-            to="/courses/new"
+            v-if="isAdminUser"
+            to="/resources/new"
             class="btn btn-primary empty-action-btn"
           >
-            첫 강의 등록하기
+            첫 리소스 등록하기
           </router-link>
         </div>
       </main>
@@ -118,15 +134,18 @@ import AppHeader from '@/components/AppHeader.vue'
 import CourseCard from '@/components/CourseCard.vue'
 import { useCourseStore } from '@/store/course.js'
 import { useAuthStore } from '@/store/auth.js'
+import { isAdmin } from '@/utils/role.js'
 
 const router = useRouter()
 const courseStore = useCourseStore()
 const auth = useAuthStore()
 
-const { categories, loading } = courseStore
+const { categories } = courseStore
 
+const loading = computed(() => courseStore.loading)
+const error = computed(() => courseStore.error)
 const selectedCategory = computed(() => courseStore.selectedCategory)
-const isInstructor = computed(() => auth.user?.role === 'INSTRUCTOR')
+const isAdminUser = computed(() => isAdmin(auth.user))
 
 const filteredCourses = computed(() => {
   if (!Array.isArray(courseStore.courses)) return []
@@ -284,7 +303,7 @@ onMounted(() => {
   border-color: var(--color-primary);
 }
 
-/* 강의 그리드 */
+/* 리소스 그리드 */
 .course-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -306,7 +325,7 @@ onMounted(() => {
 }
 
 .skeleton-thumb {
-  height: 120px;
+  height: 100px;
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;

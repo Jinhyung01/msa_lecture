@@ -116,6 +116,7 @@ public class PaymentDto {
         private String rejectReason;
         private String cancelReason;
         private LocalDateTime providedAt;
+        private LocalDateTime returnedAt;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
 
@@ -133,6 +134,7 @@ public class PaymentDto {
                     .rejectReason(payment.getRejectReason())
                     .cancelReason(payment.getCancelReason())
                     .providedAt(payment.getProvidedAt())
+                    .returnedAt(payment.getReturnedAt())
                     .createdAt(payment.getCreatedAt())
                     .updatedAt(payment.getUpdatedAt())
                     .build();

@@ -1,30 +1,35 @@
 :root {
-  --color-primary: #185FA5;
-  --color-primary-dark: #0C447C;
-  --color-primary-light: #E6F1FB;
-  --color-secondary: #378ADD;
-  --color-text-primary: #1a1a2e;
-  --color-text-secondary: #6b7280;
-  --color-text-muted: #9ca3af;
+  --color-primary: #1e9e5a;
+  --color-primary-dark: #157a44;
+  --color-primary-light: #e3f6ea;
+  --color-primary-gradient: linear-gradient(135deg, #157a44, #4cc484);
+  --color-secondary: #4cc484;
+  --color-hero-from: #effbf3;
+  --color-hero-via: #e5f7ec;
+  --color-hero-to: #f0fbf5;
+  --color-text-primary: #16191f;
+  --color-text-secondary: #6b7684;
+  --color-text-muted: #9aa3b1;
   --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f8fafc;
-  --color-bg-tertiary: #f1f5f9;
-  --color-border: #e2e8f0;
-  --color-border-hover: #cbd5e1;
-  --color-success: #0F6E56;
-  --color-success-light: #E1F5EE;
-  --color-warning: #854F0B;
-  --color-warning-light: #FAEEDA;
-  --color-danger: #dc2626;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
-  --shadow-lg: 0 10px 32px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.06);
-  --font-sans: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
-  --transition: all 0.2s ease;
+  --color-bg-secondary: #f5f6f8;
+  --color-bg-tertiary: #fbfbfc;
+  --color-border: #e4e7eb;
+  --color-border-hover: #1e9e5a;
+  --color-success: #0ea472;
+  --color-success-light: #e4f7ef;
+  --color-warning: #c8790a;
+  --color-warning-light: #fbf0dd;
+  --color-danger: #d64545;
+  --color-danger-light: #fbe7e7;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --shadow-sm: 0 1px 2px rgba(22,25,31,0.04), 0 4px 12px rgba(22,25,31,0.04);
+  --shadow-md: 0 1px 2px rgba(22,25,31,0.04), 0 8px 24px rgba(22,25,31,0.05);
+  --shadow-lg: 0 2px 4px rgba(22,25,31,0.05), 0 16px 40px rgba(22,25,31,0.08);
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
+  --transition: all 0.15s ease;
 }
 
 *, *::before, *::after {
@@ -98,15 +103,15 @@ img {
   transition: var(--transition);
 }
 .btn-primary {
-  background: var(--color-primary);
+  background: var(--color-primary-gradient);
   color: #fff;
-  border: 1.5px solid var(--color-primary);
+  border: 1.5px solid transparent;
 }
 .btn-primary:hover {
-  background: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  filter: brightness(1.08);
+}
+.btn-primary:active {
+  transform: scale(0.97);
 }
 .btn-outline {
   background: transparent;
@@ -134,9 +139,17 @@ img {
   font-size: 11px;
   font-weight: 500;
 }
-.badge-blue   { background: #E6F1FB; color: #185FA5; }
-.badge-teal   { background: #E1F5EE; color: #0F6E56; }
-.badge-amber  { background: #FAEEDA; color: #854F0B; }
-.badge-purple { background: #EEEDFE; color: #534AB7; }
-.badge-pink   { background: #FBEAF0; color: #993556; }
-.badge-gray   { background: #F1EFE8; color: #5F5E5A; }
+/* 카테고리 구분은 아이콘·텍스트로 하고, 배지 색은 브랜드 색을 아끼기 위해 중립으로 통일한다. */
+.badge-blue,
+.badge-teal,
+.badge-amber,
+.badge-purple,
+.badge-pink,
+.badge-gray   { background: var(--color-bg-tertiary); color: var(--color-text-secondary); }
+
+/* 상태·의미 전용 배지 (카테고리 배지와 분리) */
+.badge-neutral { background: var(--color-bg-tertiary); color: var(--color-text-secondary); }
+.badge-accent  { background: var(--color-primary-light); color: var(--color-primary-dark); }
+.badge-success { background: var(--color-success-light); color: var(--color-success); }
+.badge-warn    { background: var(--color-warning-light); color: var(--color-warning); }
+.badge-danger  { background: var(--color-danger-light); color: var(--color-danger); }

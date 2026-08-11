@@ -3,14 +3,38 @@
     <div class="header-inner">
       <!-- 로고 -->
       <router-link to="/" class="logo">
-        <img src="@/assets/images/logo/main_logo.png" alt="LearnNexus" class="logo-img" />
-        <span class="logo-text">LearnNexus</span>
+        <img src="@/assets/images/logo/hubby_logo.svg" alt="Hubby" class="logo-img" />
+        <span class="logo-text">Hubby</span>
       </router-link>
 
       <!-- 네비게이션 -->
       <nav class="nav-links" v-if="auth.isAuthenticated">
-        <router-link to="/courses" class="nav-link" :class="{ active: $route.path.startsWith('/courses') }">강의</router-link>
-        <router-link to="/enrollments" class="nav-link" :class="{ active: $route.path === '/enrollments' }">내 학습</router-link>
+        <router-link to="/resources" class="nav-link" :class="{ active: $route.path.startsWith('/resources') }">리소스 목록</router-link>
+        <router-link
+          v-if="isAdminUser"
+          to="/resources/new"
+          class="nav-link"
+          :class="{ active: $route.path === '/resources/new' }"
+        >리소스 등록</router-link>
+        <router-link
+          v-if="isAdminUser"
+          to="/admin/requests"
+          class="nav-link"
+          :class="{ active: $route.path === '/admin/requests' }"
+        >요청 관리</router-link>
+        <router-link
+          v-else
+          to="/requests/my"
+          class="nav-link"
+          :class="{ active: $route.path === '/requests/my' }"
+        >내 신청 내역</router-link>
+        <router-link
+          v-if="!isAdminUser"
+          to="/related"
+          class="nav-link"
+          :class="{ active: $route.path === '/related' }"
+        >연관 리소스</router-link>
+        <router-link to="/mypage" class="nav-link" :class="{ active: $route.path === '/mypage' }">마이페이지</router-link>
       </nav>
 
       <!-- 우측 액션 -->
@@ -31,11 +55,15 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useAuthStore } from '@/store/auth.js'
 import { useRouter } from 'vue-router'
+import { isAdmin } from '@/utils/role.js'
 
 const auth = useAuthStore()
 const router = useRouter()
+
+const isAdminUser = computed(() => isAdmin(auth.user))
 
 function handleLogout() {
   auth.logout()

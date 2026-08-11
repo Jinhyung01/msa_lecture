@@ -1,0 +1,27 @@
+<svg viewBox="125 55 430 300" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Hubby 아이콘</title>
+
+  <line x1="340" y1="145" x2="230" y2="80" stroke="#1D9E75" stroke-width="3" stroke-linecap="round" />
+  <line x1="340" y1="145" x2="450" y2="80" stroke="#1D9E75" stroke-width="3" stroke-linecap="round" />
+  <line x1="245" y1="200" x2="150" y2="220" stroke="#1D9E75" stroke-width="3" stroke-linecap="round" />
+  <line x1="435" y1="200" x2="530" y2="220" stroke="#1D9E75" stroke-width="3" stroke-linecap="round" />
+
+  <circle cx="230" cy="80" r="16" fill="#5DCAA5" />
+  <circle cx="450" cy="80" r="16" fill="#5DCAA5" />
+  <circle cx="150" cy="220" r="16" fill="#5DCAA5" />
+  <circle cx="530" cy="220" r="16" fill="#5DCAA5" />
+
+  <rect x="240" y="130" width="200" height="190" rx="60" fill="#1D9E75" />
+
+  <circle cx="300" cy="205" r="14" fill="#04342C" />
+  <circle cx="380" cy="205" r="14" fill="#04342C" />
+  <circle cx="303" cy="200" r="4" fill="#FFFFFF" />
+  <circle cx="383" cy="200" r="4" fill="#FFFFFF" />
+
+  <path d="M290 245 Q340 285 390 245" fill="none" stroke="#04342C" stroke-width="6" stroke-linecap="round" />
+
+  <circle cx="255" cy="230" r="18" fill="#5DCAA5" opacity="0.6" />
+  <circle cx="425" cy="230" r="18" fill="#5DCAA5" opacity="0.6" />
+
+  <ellipse cx="340" cy="330" rx="70" ry="14" fill="#5DCAA5" opacity="0.25" />
+</svg>
